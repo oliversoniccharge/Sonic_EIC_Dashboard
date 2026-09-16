@@ -1,0 +1,52 @@
+:root {
+  --bg: #101314;
+  --surface: #1a1f20;
+  --surface2: #202829;
+  --line: #344143;
+  --cyan: #03c0c1;
+  --blue: #44bfc8;
+  --muted: #aabbbc;
+}
+header {
+  background: #080b0c;
+}
+.brand {
+  gap: 22px;
+}
+.brand img {
+  display: block;
+  width: 210px;
+  height: 64px;
+  object-fit: cover;
+}
+.brand-caption {
+  border-left: 1px solid var(--line);
+  padding-left: 22px;
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.kpis article {
+  border-top-color: #03c0c1;
+}
+.site-button.active {
+  background: #123335;
+  border-color: #2b7374;
+  border-left-color: #03c0c1;
+}
+.sync {
+  border-left-color: #03c0c1;
+}
+@media (max-width: 720px) {
+  .brand img {
+    width: 145px;
+    height: 48px;
+  }
+  .brand-caption {
+    display: none;
+  }
+  .brand {
+    gap: 0;
+  }
+}

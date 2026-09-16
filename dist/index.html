@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Sonic Charge · Site meter data</title>
+    <meta
+      name="description"
+      content="Sonic Charge site meter readings, demand profiles and Western Power email updates."
+    />
+    <link rel="icon" href="brand-icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="brand.css" />
+    <link rel="stylesheet" href="visibility.css" />
+    <script
+      defer
+      src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"
+    ></script>
+    <script type="module" src="app.mjs"></script>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="./"
+        ><img src="logo-white.svg" alt="Sonic Charge" /><span
+          class="brand-caption"
+          >SITE METER DATA</span
+        ></a
+      >
+      <div class="header-actions">
+        <a href="analysis.html">Open file analyser</a
+        ><button id="reload">Refresh view</button>
+      </div>
+    </header>
+    <main>
+      <section class="intro">
+        <div>
+          <p class="eyebrow">WESTERN POWER · SITE PORTFOLIO</p>
+          <h1>Your sites. Every reading.</h1>
+          <p class="muted">
+            Select a site to explore electricity use, export and demand.
+          </p>
+        </div>
+        <div class="sync">
+          <span class="sync-label" id="syncStatus"
+            >Checking data collection</span
+          ><strong id="lastSync">Loading…</strong
+          ><small id="syncDetail"
+            >Daily email collection · Australia/Perth</small
+          >
+        </div>
+      </section>
+      <p id="error" role="alert" hidden></p>
+      <section class="workspace">
+        <aside>
+          <div class="aside-heading">
+            <h2>Sites</h2>
+            <span id="siteCount">—</span>
+          </div>
+          <label class="sr-only" for="search">Find site or NMI</label
+          ><input id="search" type="search" placeholder="Find site or NMI…" />
+          <div
+            id="siteList"
+            class="site-list"
+            aria-label="Site selection"
+          ></div>
+        </aside>
+        <section class="detail">
+          <div class="detail-heading">
+            <div>
+              <p class="eyebrow" id="nmi">METER DATA</p>
+              <h2 id="siteName">Loading site register</h2>
+              <p class="muted" id="address"></p>
+            </div>
+            <a id="advanced" class="button secondary" href="analysis.html"
+              >Detailed analysis</a
+            >
+          </div>
+          <div class="toolbar">
+            <label>From<input type="date" id="from" /></label
+            ><label>To<input type="date" id="to" /></label
+            ><button id="allDates" class="secondary">All dates</button
+            ><button id="lastMonth" class="secondary">Latest month</button
+            ><button id="download" class="secondary">Export readings</button>
+          </div>
+          <div id="dataNote" class="data-note"></div>
+          <div class="kpis">
+            <article>
+              <span>Grid import</span><strong id="import">—</strong
+              ><small>kWh in selected period</small>
+            </article>
+            <article>
+              <span>Grid export</span><strong id="export">—</strong
+              ><small>kWh in selected period</small>
+            </article>
+            <article>
+              <span>Peak demand</span><strong id="peak">—</strong
+              ><small>kW · interval average</small>
+            </article>
+            <article>
+              <span>Latest reading</span
+              ><strong id="latest" class="date-value">—</strong
+              ><small id="coverage">Awaiting readings</small>
+            </article>
+          </div>
+          <article class="panel timeline">
+            <div class="panel-heading">
+              <div>
+                <h3>Daily energy</h3>
+                <p>Grid import and export · kWh</p>
+              </div>
+              <span id="dateRange"></span>
+            </div>
+            <div class="chart">
+              <canvas
+                id="energyChart"
+                aria-label="Daily grid energy"
+                role="img"
+              ></canvas>
+            </div>
+            <p class="chart-fallback" hidden>
+              Charts could not load. Readings and summaries remain available
+              below.
+            </p>
+          </article>
+          <div class="chart-grid">
+            <article class="panel">
+              <div class="panel-heading">
+                <div>
+                  <h3>Typical day</h3>
+                  <p>Average demand · site local time</p>
+                </div>
+              </div>
+              <div class="chart">
+                <canvas
+                  id="profileChart"
+                  aria-label="Average daily demand profile"
+                  role="img"
+                ></canvas>
+              </div>
+            </article>
+            <article class="panel">
+              <div class="panel-heading">
+                <div>
+                  <h3>Monthly energy</h3>
+                  <p>Imported electricity · kWh</p>
+                </div>
+              </div>
+              <div class="chart">
+                <canvas
+                  id="monthlyChart"
+                  aria-label="Monthly grid import"
+                  role="img"
+                ></canvas>
+              </div>
+            </article>
+          </div>
+          <article class="panel">
+            <div class="panel-heading">
+              <div>
+                <h3>Meter registers</h3>
+                <p>Original register codes and data quality</p>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Register</th>
+                    <th>Meter</th>
+                    <th>Unit</th>
+                    <th>Interval</th>
+                    <th>Coverage</th>
+                    <th>Quality</th>
+                  </tr>
+                </thead>
+                <tbody id="registers"></tbody>
+              </table>
+            </div>
+          </article>
+          <details class="panel">
+            <summary>Collection and source files</summary>
+            <p class="muted" id="sourceSummary"></p>
+            <ul id="sources"></ul>
+            <p class="muted">
+              Daily collection checks for new email attachments. Reading dates
+              depend on Western Power’s delivery schedule.
+            </p>
+          </details>
+        </section>
+      </section>
+      <footer>
+        Sonic Charge · Private meter-data workspace<span
+          >All energy and demand values come from received meter files.</span
+        >
+      </footer>
+    </main>
+  </body>
+</html>

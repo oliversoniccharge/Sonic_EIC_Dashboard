@@ -1,0 +1,11 @@
+node_modules/
+.private/
+.sites-runtime/
+dist/data/
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+*.tar.gz
+*.zip

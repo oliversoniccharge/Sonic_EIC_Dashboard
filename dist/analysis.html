@@ -1,0 +1,2648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sonic Charge · Detailed meter analysis</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --brand: #03c0c1;
+      --bg: #101314;
+      --surface: #1a1f20;
+      --surface2: #202829;
+      --border: #344143;
+      --text: #e8f0fe;
+      --muted: #aabbbc;
+      --import: #03c0c1;
+      --export: #f5a623;
+      --reactive: #a78bfa;
+      --apparent: #5eead4;
+      --good: #34d399;
+      --warn: #fbbf24;
+      --bad: #f87171;
+      --grid: rgba(255,255,255,0.05);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; }
+
+    /* ─── HEADER ─────────────────────────────────────────── */
+    .header {
+      background: linear-gradient(135deg, #080b0c 0%, #173637 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .header-title { display: flex; align-items: center; gap: 12px; }
+    .header-title svg { width: 28px; height: 28px; }
+    .header-logo-mark { height: 38px; width: auto; }
+    .header-brand-sub { font-size: 9px; color: var(--brand); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 1px; }
+    .header h1 { font-size: 18px; font-weight: 600; letter-spacing: 0.3px; }
+    .header-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chip {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 20px; padding: 3px 10px; font-size: 12px; color: var(--muted);
+    }
+    .chip span { color: var(--text); font-weight: 500; }
+    .upload-btn {
+      background: var(--import); color: white; border: none; border-radius: 6px;
+      padding: 7px 14px; cursor: pointer; font-size: 13px; font-weight: 500;
+      transition: opacity 0.2s;
+    }
+    .upload-btn:hover { opacity: 0.85; }
+
+    /* ─── UPLOAD ZONE ─────────────────────────────────────── */
+    #uploadZone {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: calc(100vh - 57px); padding: 40px;
+    }
+    .drop-area {
+      border: 2px dashed var(--border); border-radius: 16px;
+      padding: 60px 80px; text-align: center; cursor: pointer;
+      transition: border-color 0.2s, background 0.2s; max-width: 560px; width: 100%;
+    }
+    .drop-area:hover, .drop-area.drag-over {
+      border-color: var(--import); background: rgba(79,156,249,0.05);
+    }
+    .drop-icon { font-size: 48px; margin-bottom: 16px; }
+    .drop-area h2 { font-size: 20px; margin-bottom: 8px; }
+    .drop-area p { color: var(--muted); margin-bottom: 20px; line-height: 1.6; }
+    .format-tags { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px; }
+    .format-tag {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 4px; padding: 3px 8px; font-size: 12px; font-weight: 600;
+      color: var(--import);
+    }
+    #fileInput { display: none; }
+    .error-msg { color: var(--bad); margin-top: 12px; font-size: 13px; }
+
+    /* ─── DASHBOARD ────────────────────────────────────────── */
+    #dashboard { display: none; padding: 16px 20px; }
+
+    /* ─── CONTROLS ──────────────────────────────────────────── */
+    .controls {
+      display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 16px; margin-bottom: 16px;
+    }
+    .ctrl-group { display: flex; align-items: center; gap: 8px; }
+    .ctrl-label { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .ctrl-input {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      border-radius: 6px; padding: 5px 10px; font-size: 13px; width: 120px;
+    }
+    .ctrl-select {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      border-radius: 6px; padding: 5px 10px; font-size: 13px;
+    }
+    .ctrl-input:focus, .ctrl-select:focus { outline: none; border-color: var(--import); }
+    .ctrl-sep { width: 1px; height: 24px; background: var(--border); }
+    .pill-btn {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--muted); border-radius: 20px; padding: 4px 12px; font-size: 12px;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .pill-btn.active { background: var(--import); border-color: var(--import); color: white; }
+    .pill-btn:hover:not(.active) { border-color: var(--import); color: var(--text); }
+
+    /* ─── CARDS ──────────────────────────────────────────────── */
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px;
+    }
+    .card-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .card-value { font-size: 22px; font-weight: 700; line-height: 1.1; }
+    .card-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .card-unit { font-size: 13px; font-weight: 400; color: var(--muted); }
+    .card.import .card-value { color: var(--import); }
+    .card.export .card-value { color: var(--export); }
+    .card.peak .card-value { color: var(--warn); }
+    .card.good .card-value { color: var(--good); }
+    .card.alert .card-value { color: var(--bad); }
+
+    /* ─── CHART CONTAINERS ────────────────────────────────────── */
+    .chart-grid { display: grid; gap: 16px; }
+    .chart-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+    .chart-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .chart-box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px; margin-bottom: 16px;
+    }
+    .chart-box.span2 { grid-column: span 2; }
+    .chart-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .chart-title { font-size: 13px; font-weight: 600; }
+    .chart-subtitle { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .chart-actions { display: flex; gap: 6px; }
+    .chart-canvas-wrap { position: relative; }
+
+    /* ─── HEATMAP ────────────────────────────────────────────── */
+    #heatmapContainer { overflow-x: auto; }
+    .heatmap-wrap { min-width: 700px; }
+    .heatmap-months { display: flex; gap: 0; margin-left: 32px; margin-bottom: 4px; }
+    .heatmap-month-label { font-size: 10px; color: var(--muted); text-align: center; }
+    .heatmap-grid { display: flex; gap: 2px; }
+    .heatmap-days { display: flex; flex-direction: column; gap: 2px; margin-right: 4px; }
+    .heatmap-day-label { font-size: 10px; color: var(--muted); width: 26px; text-align: right; height: 12px; line-height: 12px; }
+    .heatmap-weeks { display: flex; gap: 2px; }
+    .heatmap-week { display: flex; flex-direction: column; gap: 2px; }
+    .heatmap-cell {
+      width: 12px; height: 12px; border-radius: 2px;
+      cursor: pointer; transition: opacity 0.15s;
+    }
+    .heatmap-cell:hover { opacity: 0.7; }
+    .heatmap-legend { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 11px; color: var(--muted); }
+    .heatmap-legend-cells { display: flex; gap: 2px; }
+
+    /* ─── RECOMMENDATIONS ─────────────────────────────────────── */
+    .rec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+    .rec-card {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px;
+    }
+    .rec-card h3 { font-size: 13px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .rec-card .rec-icon { font-size: 18px; }
+    .rec-item { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+    .rec-item:last-child { border-bottom: none; }
+    .rec-item-label { color: var(--muted); }
+    .rec-item-value { font-weight: 600; }
+    .highlight { color: var(--good); }
+    .warn-text { color: var(--warn); }
+    .bad-text { color: var(--bad); }
+
+    /* ─── CONNECTION GAUGE ────────────────────────────────────── */
+    .gauge-wrap { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .gauge-bar-wrap { flex: 1; min-width: 120px; }
+    .gauge-bar-bg { height: 20px; background: var(--surface2); border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+    .gauge-bar-fill { height: 100%; border-radius: 10px; transition: width 0.8s ease; }
+    .gauge-labels { display: flex; justify-content: space-between; margin-top: 4px; font-size: 11px; color: var(--muted); }
+    .gauge-pct { font-size: 22px; font-weight: 700; min-width: 60px; text-align: right; }
+
+    /* ─── SECTION HEADER ────────────────────────────────────────── */
+    .section-header { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--brand); margin-bottom: 10px; margin-top: 6px; }
+
+    /* ─── CLIENT INFO PANEL ──────────────────────────────────────── */
+    .client-panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-left: 3px solid var(--brand);
+      border-radius: 10px; padding: 12px 16px; margin-bottom: 14px;
+    }
+    .client-panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer; user-select: none;
+    }
+    .client-panel-header-left { display: flex; align-items: center; gap: 10px; }
+    .client-panel-title { font-size: 12px; font-weight: 600; color: var(--brand); }
+    .client-panel-summary { font-size: 11px; color: var(--muted); }
+    #clientInfoPanel { margin-top: 12px; display: none; }
+    #clientInfoPanel.open { display: block; }
+    .client-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .client-field { display: flex; flex-direction: column; gap: 4px; }
+    .client-field.full-width { grid-column: span 2; }
+    .client-field label { font-size: 11px; color: var(--muted); }
+    .client-field input, .client-field textarea {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); border-radius: 6px; padding: 6px 10px;
+      font-size: 12px; font-family: inherit;
+    }
+    .client-field input:focus, .client-field textarea:focus {
+      outline: none; border-color: var(--brand);
+    }
+    .client-field textarea { resize: vertical; min-height: 48px; }
+    #clientToggleBtn {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      border-radius: 6px; padding: 3px 10px; cursor: pointer; font-size: 11px;
+      transition: all 0.15s;
+    }
+    #clientToggleBtn:hover { border-color: var(--brand); color: var(--brand); }
+
+    .dataset-note {
+      background: linear-gradient(180deg, rgba(2,191,192,0.08), rgba(30,42,58,0.92));
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--brand);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 14px;
+    }
+    .dataset-note-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--brand);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+    }
+    .dataset-note-text {
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--text);
+    }
+    .dataset-note-text b { color: var(--brand); }
+
+    /* ─── SITE IMAGES SECTION ────────────────────────────────── */
+    .image-add-btn {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--brand); border-radius: 6px; padding: 5px 14px;
+      font-size: 12px; cursor: pointer; transition: all 0.15s;
+    }
+    .image-add-btn:hover { background: var(--brand); color: #0f1623; }
+    #imageGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 12px; }
+    .img-item { position: relative; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .img-item img { width: 100%; height: 140px; object-fit: cover; display: block; }
+    .img-item-caption { padding: 6px 8px 8px; }
+    .img-item-caption input { width: 100%; background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 4px 8px; font-size: 11px; }
+    .img-item-caption input:focus { outline: none; border-color: var(--brand); }
+    .img-remove-btn { position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,0.55); color: white; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-size: 12px; line-height: 22px; text-align: center; padding: 0; }
+    .img-remove-btn:hover { background: var(--bad); }
+
+    /* ── Print: images grid ── */
+    @media print {
+      .site-images-print { break-before: page; }
+      .site-images-print .print-img-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px; }
+      .site-images-print .print-img-item { break-inside: avoid; }
+      .site-images-print .print-img-item img { width: 100%; height: auto; max-height: 360px; object-fit: contain; border: 1px solid #c8d4e0; border-radius: 4px; display: block; background: #f8f9fa; }
+      .site-images-print .print-img-caption { font-size: 9px; color: #5a7a9a; margin-top: 4px; font-style: italic; text-align: center; }
+    }
+
+    /* ─── QUALITY BADGE ─────────────────────────────────────────── */
+    .quality-dots { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+    .qdot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .qdot.A { background: var(--good); }
+    .qdot.S { background: var(--warn); }
+    .qdot.E { background: var(--bad); }
+    .qdot.other { background: var(--muted); }
+
+    /* ─── DAILY REVIEW ─────────────────────────────────────── */
+    .review-toolbar {
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .review-meta {
+      font-size: 11px; color: var(--muted);
+    }
+    .review-table-wrap {
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .review-table {
+      width: 100%;
+      min-width: 640px;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .review-table th,
+    .review-table td {
+      border-bottom: 1px solid var(--border);
+      padding: 7px 8px;
+      text-align: right;
+      white-space: nowrap;
+    }
+    .review-table th:first-child,
+    .review-table td:first-child,
+    .review-table th:nth-child(2),
+    .review-table td:nth-child(2) {
+      text-align: left;
+    }
+    .review-table th {
+      position: sticky;
+      top: 0;
+      background: var(--surface2);
+      color: var(--text);
+      z-index: 1;
+    }
+    .review-table tr:last-child td { border-bottom: none; }
+    .review-table .muted-cell { color: var(--muted); }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--surface); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    @media (max-width: 768px) {
+      .chart-grid.cols-2 { grid-template-columns: 1fr; }
+      .chart-grid.cols-3 { grid-template-columns: 1fr; }
+      .chart-box.span2 { grid-column: span 1; }
+    }
+
+    /* ─── PDF EXPORT BUTTON ────────────────────────────────── */
+    .pdf-btn {
+      background: transparent; color: var(--brand); border: 1px solid var(--brand);
+      border-radius: 6px; padding: 7px 14px; cursor: pointer;
+      font-size: 13px; font-weight: 500; transition: all 0.2s; white-space: nowrap;
+    }
+    .pdf-btn:hover { background: var(--brand); color: #0f1623; }
+    .header-btns { display: flex; gap: 8px; align-items: center; }
+    .no-print { }
+
+    /* ─── PRINT / PDF STYLES ──────────────────────────────── */
+    .print-only { display: none; }
+    /* Print break helper — invisible on screen, forces page break in print */
+    .print-break { display: none; }
+
+    /* Print chart image overlay — hidden on screen, shown at print time */
+    .chart-canvas-wrap { position: relative; }
+    .print-chart-img {
+      display: none;
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: fill;
+    }
+
+    @media print {
+      @page { size: A4 portrait; margin: 14mm 16mm 14mm 16mm; }
+
+      :root {
+        --bg: #ffffff; --surface: #ffffff; --surface2: #f4f6f9;
+        --border: #c8d4e0; --text: #1a2a3a; --muted: #5a7a9a;
+        --import: #1a56b0; --export: #b35900; --good: #116b3f;
+        --warn: #7a5500; --bad: #9b1c1c;
+      }
+
+      body { background: white; color: #1a2a3a; font-size: 11px;
+             -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+      /* ── Hide interactive chrome ── */
+      .header-brand-sub { display: none !important; }
+      .header { display: none !important; }
+      .no-print, #uploadZone, .upload-btn, #fileInput, #fileInputHdr,
+      .controls, .chart-actions, .pill-btn, .header-btns,
+      .client-panel, #clientInfoPanel, #clientToggleBtn,
+      #siteImagesBox { display: none !important; }
+
+      /* ── Show print-only elements ── */
+      .print-only { display: block !important; }
+      .dataset-note { background: #f7fbfb !important; border-color: #c8d4e0 !important; margin-bottom: 8px !important; padding: 8px 10px !important; }
+      .dataset-note-title { font-size: 10px !important; color: #02bfc0 !important; margin-bottom: 4px !important; }
+      .dataset-note-text { font-size: 9px !important; line-height: 1.45 !important; color: #1a2a3a !important; }
+      .dataset-note-text b { color: #1a2a3a !important; }
+
+      /* ── Print header ── */
+      #printHeader { display: block !important; padding: 0 0 8px 0;
+                     margin-bottom: 8px; break-after: auto; }
+
+      /* ── Dashboard wrapper ── */
+      #dashboard { display: block !important; padding: 0 !important; }
+
+      /* ── Section headers ── */
+      .section-header { color: #02bfc0 !important; font-size: 10px !important;
+                        border-bottom: 1px solid #c8d4e0; padding-bottom: 3px;
+                        margin-top: 10px !important; margin-bottom: 8px !important; }
+
+      /* ── Summary cards: 3-col, compact ── */
+      .cards { grid-template-columns: repeat(4, 1fr) !important;
+               gap: 6px !important; margin-bottom: 8px !important; }
+      .card { background: #f4f6f9 !important; border: 1px solid #c8d4e0 !important;
+              padding: 8px 10px !important; break-inside: avoid; }
+      .card-label { font-size: 9px !important; }
+      .card-value { font-size: 16px !important; }
+      .card-sub { font-size: 9px !important; }
+      .card.import .card-value { color: #1a56b0 !important; }
+      .card.export .card-value { color: #b35900 !important; }
+      .card.peak   .card-value { color: #7a5500 !important; }
+      .card.good   .card-value { color: #116b3f !important; }
+      .card.alert  .card-value { color: #9b1c1c !important; }
+
+      /* ── Chart boxes ── */
+      .chart-box {
+        background: white !important; border: 1px solid #c8d4e0 !important;
+        padding: 7px 9px !important; margin-bottom: 6px !important;
+        overflow: hidden !important; break-inside: avoid;
+      }
+      .chart-header { margin-bottom: 3px !important; }
+      .chart-title  { color: #1a2a3a !important; font-size: 10px !important;
+                      font-weight: 600 !important; }
+      .chart-subtitle { color: #5a7a9a !important; font-size: 9px !important; }
+
+      /* Canvas height — sized for A4 composition (fills pages properly) */
+      .chart-canvas-wrap {
+        height: 220px !important;
+        max-height: 220px !important;
+        overflow: hidden !important;
+        position: relative !important;
+      }
+      /* 2-col chart canvases — slightly shorter to fit two side-by-side comfortably */
+      .chart-grid.cols-2 .chart-canvas-wrap {
+        height: 190px !important;
+        max-height: 190px !important;
+      }
+      #chartTimeline { max-height: 220px; }
+
+      /* ── 2-col grid — side by side, no orphans ── */
+      .chart-grid.cols-2 {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px !important;
+        margin-bottom: 6px !important;
+        break-inside: auto !important;
+      }
+      /* chart-box inside 2-col grid has no bottom margin (gap handles it) */
+      .chart-grid.cols-2 .chart-box { margin-bottom: 0 !important; }
+
+      /* ── Page break control ── */
+      /* Force page break BEFORE the LDC + Reactive row → keeps them with Recommendations on page 2 */
+      .print-break { display: none !important; }
+
+      /* Connection section starts a new page only when it's visible */
+      #connectionSection[style*="block"] { break-before: auto; }
+
+      /* Keep recommendations section together with what's above it on page 2 */
+      #recommendationsSection { break-inside: auto; }
+
+      /* ── Heatmap — hidden in print ── */
+      #heatmapContainer, #hmTooltip { display: none !important; }
+      .heatmap-chart-box { display: none !important; }
+
+      /* ── Chart image overlays — hide live canvas, show captured image ── */
+      .chart-canvas-wrap canvas { display: block !important; width: 100% !important; height: 100% !important; }
+      .chart-canvas-wrap .print-chart-img { display: none !important; }
+      body.print-prepared .chart-canvas-wrap canvas { display: none !important; }
+      body.print-prepared .chart-canvas-wrap .print-chart-img { display: block !important; }
+
+      /* ── Recommendation cards ── */
+      .rec-grid { grid-template-columns: repeat(2, 1fr) !important;
+                  gap: 6px !important; }
+      .rec-card { background: #f4f6f9 !important; border: 1px solid #c8d4e0 !important;
+                  padding: 8px 10px !important; break-inside: avoid;
+                  font-size: 10px !important; }
+      .rec-card h3 { color: #1a2a3a !important; font-size: 10px !important;
+                     margin-bottom: 4px !important; }
+      .rec-item { padding: 4px 0 !important; font-size: 10px !important; }
+      .rec-item-label { color: #5a7a9a !important; }
+      .highlight { color: #116b3f !important; }
+      .warn-text  { color: #7a5500 !important; }
+      .bad-text   { color: #9b1c1c !important; }
+
+      #connectionSection,
+      #dayReviewSection,
+      .heatmap-chart-box,
+      .review-table-wrap { display: none !important; }
+
+      /* ── Connection utilisation ── */
+      .gauge-bar-bg  { background: #e5eaf0 !important; }
+      .gauge-pct     { color: #1a2a3a !important; font-size: 18px !important; }
+      .connDetails   { font-size: 10px !important; }
+    }
+  </style>
+<link rel="icon" href="brand-icon.svg"><style>.header-logo-mark{width:180px;height:65px;object-fit:contain}.header-brand-sub{font-size:12px}body{font-size:16px} .header-title:before{content:""} .site-back{padding:10px 24px;background:#07191d;font-size:14px} .site-back a{color:#03c0c1}</style></head>
+<body><div class="site-back"><a href="./">← All sites</a><span id="hostedAnalysisNotice" style="margin-left:20px"></span></div>
+
+<!-- ═══════════════════════════════════════════════════════ HEADER -->
+<div class="header">
+  <div class="header-title">
+    <img src="logo-white.svg" class="header-logo-mark" alt="Sonic Charge">
+    <div>
+      <h1>Meter Data Analysis Dashboard</h1>
+      <div class="header-brand-sub">Sonic Charge</div>
+    </div>
+  </div>
+  <div id="headerMeta" class="header-meta" style="display:none"></div>
+  <div class="header-btns no-print">
+    <button class="pdf-btn" id="exportPdfBtn" onclick="App.printReport()" style="display:none">🖨 Export PDF</button>
+    <label class="upload-btn" for="fileInput">📂 Load File</label>
+    <input type="file" id="fileInput" accept=".csv,.txt,.xls,.xlsx">
+  </div>
+</div>
+
+<!-- ═══════════════ PRINT-ONLY REPORT HEADER ══════════════ -->
+<div id="printHeader" class="print-only" style="display:none">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;border-bottom:3px solid #02bfc0;margin-bottom:10px">
+    <img src="logo-black.svg" style="height:44px;width:auto" alt="Sonic Charge">
+    <div style="text-align:right">
+      <div style="font-size:15px;font-weight:700;color:#1a2a3a" id="printSiteTitle"></div>
+      <div style="font-size:9px;color:#5a7a9a;text-transform:uppercase;letter-spacing:1px;margin-top:3px">Energy Analysis Report &nbsp;·&nbsp; Confidential</div>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:2px">
+    <div style="font-size:9px;color:#5a7a9a">Generated by Sonic Charge Meter Data Analysis Dashboard</div>
+    <div style="font-size:9px;color:#5a7a9a" id="printGeneratedDate"></div>
+  </div>
+  <div class="dataset-note">
+    <div class="dataset-note-title">About This Data Set</div>
+    <div class="dataset-note-text">
+      This report is based on interval meter data from the uploaded file. Channel codes identify the type of energy being measured:
+      <b>E1</b> = grid import active energy,
+      <b>B1</b> = export active energy, typically surplus solar sent to grid,
+      <b>Q1</b> = import reactive energy,
+      <b>K1</b> = export reactive energy.
+      In this dashboard, E1 and B1 are used to assess load, export and solar opportunity, while Q1 and K1 are used for reactive power and power factor analysis.
+    </div>
+  </div>
+  <table style="width:100%;margin-top:8px;border-collapse:collapse;font-size:10px">
+    <tr>
+      <td style="padding:4px 8px;background:#eef2f8;border:1px solid #c8d4e0;width:14%;font-weight:600">NMI</td>
+      <td id="ptNMI" style="padding:4px 8px;border:1px solid #c8d4e0;width:19%"></td>
+      <td style="padding:4px 8px;background:#eef2f8;border:1px solid #c8d4e0;width:14%;font-weight:600">Meter Serial</td>
+      <td id="ptMeter" style="padding:4px 8px;border:1px solid #c8d4e0;width:19%"></td>
+      <td style="padding:4px 8px;background:#eef2f8;border:1px solid #c8d4e0;width:14%;font-weight:600">Data Range</td>
+      <td id="ptRange" style="padding:4px 8px;border:1px solid #c8d4e0"></td>
+    </tr>
+    <tr>
+      <td style="padding:4px 8px;background:#eef2f8;border:1px solid #c8d4e0;font-weight:600">DNSP</td>
+      <td id="ptDNSP" style="padding:4px 8px;border:1px solid #c8d4e0"></td>
+      <td style="padding:4px 8px;background:#eef2f8;border:1px solid #c8d4e0;font-weight:600">Format</td>
+      <td id="ptFormat" style="padding:4px 8px;border:1px solid #c8d4e0"></td>
+      <td style="padding:4px 8px;background:#eef2f8;border:1px solid #c8d4e0;font-weight:600">Channels</td>
+      <td id="ptChannels" style="padding:4px 8px;border:1px solid #c8d4e0"></td>
+    </tr>
+  </table>
+
+  <!-- Dedicated client/report info block — only shows if client data was entered -->
+  <div id="ptClientBlock" style="display:none;margin-top:10px;border:1px solid #c8d4e0;border-left:4px solid #02bfc0;border-radius:4px;overflow:hidden">
+    <div style="background:#eef8f8;padding:5px 10px;border-bottom:1px solid #c8d4e0">
+      <span style="font-size:10px;font-weight:700;color:#02bfc0;text-transform:uppercase;letter-spacing:0.8px">Report Prepared For</span>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:10px">
+      <tr id="ptClientRow">
+        <td style="padding:4px 10px;background:#f7fbfb;border-bottom:1px solid #e8f0f0;width:16%;font-weight:600;color:#1a2a3a">Client</td>
+        <td id="ptClientName" style="padding:4px 10px;border-bottom:1px solid #e8f0f0;width:34%"></td>
+        <td style="padding:4px 10px;background:#f7fbfb;border-bottom:1px solid #e8f0f0;width:16%;font-weight:600;color:#1a2a3a">Site</td>
+        <td id="ptClientSite" style="padding:4px 10px;border-bottom:1px solid #e8f0f0"></td>
+      </tr>
+      <tr id="ptContactRow">
+        <td style="padding:4px 10px;background:#f7fbfb;border-bottom:1px solid #e8f0f0;font-weight:600;color:#1a2a3a">Contact</td>
+        <td id="ptClientContact" style="padding:4px 10px;border-bottom:1px solid #e8f0f0"></td>
+        <td style="padding:4px 10px;background:#f7fbfb;border-bottom:1px solid #e8f0f0;font-weight:600;color:#1a2a3a">Phone</td>
+        <td id="ptClientPhone" style="padding:4px 10px;border-bottom:1px solid #e8f0f0"></td>
+      </tr>
+      <tr id="ptEmailRow">
+        <td style="padding:4px 10px;background:#f7fbfb;border-bottom:1px solid #e8f0f0;font-weight:600;color:#1a2a3a">Email</td>
+        <td id="ptClientEmail" style="padding:4px 10px;border-bottom:1px solid #e8f0f0"></td>
+        <td style="padding:4px 10px;background:#f7fbfb;border-bottom:1px solid #e8f0f0;font-weight:600;color:#1a2a3a">Prepared By</td>
+        <td id="ptPreparedBy" style="padding:4px 10px;border-bottom:1px solid #e8f0f0"></td>
+      </tr>
+      <tr id="ptNotesRow" style="display:none">
+        <td style="padding:4px 10px;background:#f7fbfb;font-weight:600;color:#1a2a3a;vertical-align:top">Notes</td>
+        <td id="ptNotes" colspan="3" style="padding:4px 10px;font-style:italic;color:#2a3a4a"></td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Executive Summary — on first (cover) page, after client info -->
+  <div id="execSummarySection" style="display:none;margin-top:12px">
+    <div style="color:#02bfc0;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #c8d4e0;padding-bottom:3px;margin-bottom:8px">Executive Summary</div>
+    <div id="execSummaryText" style="font-size:10px;line-height:1.7;color:#1a2a3a;text-align:justify"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ UPLOAD ZONE -->
+<div id="uploadZone">
+  <div class="drop-area" id="dropArea">
+    <div class="drop-icon">⚡</div>
+    <h2>Load Meter Data File</h2>
+    <p>Drag and drop your meter data file here, or click to browse.<br>
+    Data is processed entirely in your browser — nothing is uploaded.</p>
+    <div class="format-tags">
+      <span class="format-tag">NEM12</span>
+      <span class="format-tag">Synergy HalfHourly XLS</span>
+      <span class="format-tag" style="opacity:0.4">NEM13 (soon)</span>
+      <span class="format-tag" style="opacity:0.4">Ausgrid CSV (soon)</span>
+    </div>
+    <label class="upload-btn" for="fileInput" style="display:inline-block">Choose File</label>
+    <div id="errorMsg" class="error-msg"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ DASHBOARD -->
+<div id="dashboard">
+
+  <!-- Controls bar -->
+  <div class="controls">
+    <div class="ctrl-group">
+      <span class="ctrl-label">From</span>
+      <input type="date" id="ctrlDateFrom" class="ctrl-input" style="width:140px">
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">To</span>
+      <input type="date" id="ctrlDateTo" class="ctrl-input" style="width:140px">
+    </div>
+    <button class="pill-btn" onclick="App.applyDateFilter()">Apply</button>
+    <button class="pill-btn" onclick="App.resetDateFilter()">All data</button>
+    <div class="ctrl-sep"></div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">⚡ Connection</span>
+      <input type="number" id="ctrlConnection" class="ctrl-input" placeholder="kVA" min="0" step="1" style="width:74px"
+             oninput="App.syncAmpsFromKva()" title="Enter connection size in kVA">
+      <span class="ctrl-label">kVA</span>
+      <span class="ctrl-label" style="color:var(--border);font-weight:400;padding:0 2px">or</span>
+      <input type="number" id="ctrlAmps" class="ctrl-input" placeholder="Amps" min="0" step="1" style="width:74px"
+             oninput="App.syncKvaFromAmps()" title="Enter connection size in amps (e.g. circuit breaker rating)">
+      <span class="ctrl-label">A</span>
+      <select id="ctrlPhase" class="ctrl-select" onchange="App.onPhaseChange()" title="Supply phase type">
+        <option value="3ph">3Ø Three Phase</option>
+        <option value="1ph">1Ø Single Phase</option>
+      </select>
+      <input type="number" id="ctrlVoltage" class="ctrl-input" value="400" min="1" step="1" style="width:62px"
+             oninput="App.syncAmpsFromKva()" title="Line voltage (V)">
+      <span class="ctrl-label">V</span>
+    </div>
+    <button class="pill-btn" onclick="App.updateConnectionAnalysis()">Analyse</button>
+    <div class="ctrl-sep"></div>
+    <span class="ctrl-label">Profile view:</span>
+    <button class="pill-btn active" id="profileAll" onclick="App.setProfileFilter('all')">All Days</button>
+    <button class="pill-btn" id="profileWD"  onclick="App.setProfileFilter('weekday')">Weekdays</button>
+    <button class="pill-btn" id="profileWE"  onclick="App.setProfileFilter('weekend')">Weekends</button>
+  </div>
+
+  <div class="dataset-note">
+    <div class="dataset-note-title">About This Data Set</div>
+    <div class="dataset-note-text">
+      This dashboard reads interval meter data from the uploaded file. Channel codes identify the type of energy:
+      <b>E1</b> = grid import active energy,
+      <b>B1</b> = export active energy, usually surplus solar sent to grid,
+      <b>Q1</b> = import reactive energy,
+      <b>K1</b> = export reactive energy.
+      E1 and B1 drive the load, solar and battery analysis, while Q1 and K1 are used for reactive power and power factor review.
+    </div>
+  </div>
+
+  <!-- Client / Site Information Panel -->
+  <div class="client-panel" id="clientPanel">
+    <div class="client-panel-header" onclick="App.toggleClientPanel()">
+      <div class="client-panel-header-left">
+        <span style="font-size:16px">🏢</span>
+        <span class="client-panel-title">Client &amp; Site Information</span>
+        <span class="client-panel-summary" id="clientSummary">Click to add client details for the PDF report</span>
+      </div>
+      <button id="clientToggleBtn">▼ Expand</button>
+    </div>
+    <div id="clientInfoPanel">
+      <div class="client-fields" style="margin-top:12px">
+        <div class="client-field">
+          <label>Client / Organisation Name</label>
+          <input type="text" id="ciClient" placeholder="e.g. Acme Pty Ltd" oninput="App.updateClientSummary()">
+        </div>
+        <div class="client-field">
+          <label>Site Name / Description</label>
+          <input type="text" id="ciSite" placeholder="e.g. Main Warehouse, 123 Smith St" oninput="App.updateClientSummary()">
+        </div>
+        <div class="client-field">
+          <label>Contact Person</label>
+          <input type="text" id="ciContact" placeholder="e.g. Jane Smith">
+        </div>
+        <div class="client-field">
+          <label>Contact Phone</label>
+          <input type="text" id="ciPhone" placeholder="e.g. 0400 000 000">
+        </div>
+        <div class="client-field">
+          <label>Contact Email</label>
+          <input type="text" id="ciEmail" placeholder="e.g. jane@example.com">
+        </div>
+        <div class="client-field">
+          <label>Prepared By</label>
+          <input type="text" id="ciPreparedBy" placeholder="e.g. Oliver — Sonic Charge">
+        </div>
+        <div class="client-field full-width">
+          <label>Assessment / Commentary (included in executive summary)</label>
+          <textarea id="ciAssessment" placeholder="Write your own engineering assessment, observations, caveats, or recommended actions here..."></textarea>
+        </div>
+        <div class="client-field full-width">
+          <label>Report Notes (optional)</label>
+          <textarea id="ciNotes" placeholder="Any additional context or notes to include on the report..."></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Site Visit Images -->
+  <div class="chart-box" id="siteImagesBox" style="margin-bottom:14px">
+    <div class="chart-header" style="margin-bottom:0">
+      <div>
+        <div class="chart-title">📷 Site Visit Images</div>
+        <div class="chart-subtitle">Photos will appear in the PDF report — drag to reorder, click ✕ to remove</div>
+      </div>
+      <label class="image-add-btn" for="imageUploadInput">+ Add Images</label>
+    </div>
+    <input type="file" id="imageUploadInput" accept="image/*" multiple style="display:none" onchange="App.addImages(event)">
+    <div id="imageGrid"></div>
+    <div id="noImagesMsg" style="color:var(--muted);font-size:12px;padding:10px 0 4px">No images attached. Add photos from a site visit to include them in the PDF report.</div>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="section-header">Summary — E1 Import Channel</div>
+  <div class="cards" id="summaryCards"></div>
+
+  <!-- Daily Energy Timeline -->
+  <div class="chart-box">
+    <div class="chart-header">
+      <div>
+        <div class="chart-title">Daily Energy — Import &amp; Export</div>
+        <div class="chart-subtitle">Total kWh per day across all intervals</div>
+      </div>
+      <div class="chart-actions">
+        <button class="pill-btn active" id="timelineBar" onclick="App.setTimelineType('bar')">Bar</button>
+        <button class="pill-btn" id="timelineLine" onclick="App.setTimelineType('line')">Line</button>
+      </div>
+    </div>
+    <div class="chart-canvas-wrap" style="height:260px"><canvas id="chartTimeline"></canvas></div>
+  </div>
+
+  <!-- PAGE 1: Load Profile + Monthly (stay on page 1 with timeline) -->
+  <div class="chart-grid cols-2">
+    <div class="chart-box" style="margin-bottom:0">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Average Load Profile</div>
+          <div class="chart-subtitle">kW demand by 30-min interval</div>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap" style="height:230px"><canvas id="chartProfile"></canvas></div>
+    </div>
+    <div class="chart-box" style="margin-bottom:0">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Monthly Energy Totals</div>
+          <div class="chart-subtitle">Import vs Export (kWh)</div>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap" style="height:230px"><canvas id="chartMonthly"></canvas></div>
+    </div>
+  </div>
+
+  <!-- PAGE BREAK: everything below lands on page 2 of the PDF -->
+  <div class="print-break"></div>
+
+  <!-- PAGE 2: Load Duration + Reactive Power -->
+  <div class="chart-grid cols-2" style="margin-top:16px">
+    <div class="chart-box" style="margin-bottom:0">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Load Duration Curve</div>
+          <div class="chart-subtitle">% of time demand exceeds X kW (E1 import)</div>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap" style="height:230px"><canvas id="chartLDC"></canvas></div>
+    </div>
+    <div class="chart-box" style="margin-bottom:0">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Reactive Power Profile</div>
+          <div class="chart-subtitle">Average kVAr by interval (Q1 import / K1 export)</div>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap" style="height:230px"><canvas id="chartReactive"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Demand Calendar Heatmap (screen only — hidden in print) -->
+  <div class="chart-box heatmap-chart-box" style="margin-top:16px">
+    <div class="chart-header">
+      <div>
+        <div class="chart-title">Daily Import Energy Heatmap</div>
+        <div class="chart-subtitle">Each cell = one day. Darker = higher import (kWh)</div>
+      </div>
+      <div class="chart-actions">
+        <button class="pill-btn active" id="hmImport" onclick="App.setHeatmapChannel('E1')">Import</button>
+        <button class="pill-btn" id="hmExport" onclick="App.setHeatmapChannel('B1')">Export</button>
+        <button class="pill-btn" id="hmPeak" onclick="App.setHeatmapChannel('peak')">Peak kW</button>
+      </div>
+    </div>
+    <div id="heatmapContainer"></div>
+    <div id="hmTooltip" style="font-size:12px;color:var(--muted);margin-top:8px;min-height:18px"></div>
+  </div>
+
+  <div id="dayReviewSection" class="chart-box" style="margin-top:16px">
+    <div class="chart-header">
+      <div>
+        <div class="chart-title">Daily Interval Data Review</div>
+        <div class="chart-subtitle">Step through one day at a time and compare raw interval values against the uploaded source data</div>
+      </div>
+    </div>
+    <div class="review-toolbar">
+      <button class="pill-btn" onclick="App.shiftInspectionDate(-1)">◀ Previous Day</button>
+      <input type="date" id="ctrlInspectDate" class="ctrl-input" style="width:150px">
+      <button class="pill-btn" onclick="App.shiftInspectionDate(1)">Next Day ▶</button>
+      <span class="review-meta" id="dayReviewMeta"></span>
+    </div>
+    <div class="chart-canvas-wrap" style="height:220px;margin-bottom:12px">
+      <canvas id="chartDayProfile"></canvas>
+    </div>
+    <div class="review-table-wrap">
+      <table class="review-table">
+        <thead id="dayReviewHead"></thead>
+        <tbody id="dayReviewBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- System Recommendations (page 2, after LDC/Reactive) -->
+  <div id="recommendationsSection" style="margin-top:16px">
+    <div class="section-header">System Recommendations</div>
+    <div class="rec-grid" id="recommendations"></div>
+  </div>
+
+  <!-- Connection & Capacity Analysis (page 3 when present) -->
+  <div id="connectionSection" style="display:none;margin-top:16px">
+    <div class="section-header">Connection &amp; Capacity Analysis</div>
+    <div class="chart-grid cols-2">
+      <div class="chart-box" style="margin-bottom:0">
+        <div class="chart-header">
+          <div class="chart-title">Connection Utilisation</div>
+          <div class="chart-subtitle" id="connSubtitle"></div>
+        </div>
+        <div id="connGauge"></div>
+        <div class="rec-grid" style="margin-top:16px" id="connDetails"></div>
+      </div>
+      <div class="chart-box" style="margin-bottom:0">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Demand vs Connection Capacity</div>
+            <div class="chart-subtitle">Load duration curve with capacity line</div>
+          </div>
+        </div>
+        <div class="chart-canvas-wrap" style="height:220px"><canvas id="chartLDCconn"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Print-only: Site visit images (only rendered when images are present) -->
+  <div id="printImagesSection" class="print-only site-images-print" style="display:none">
+    <div class="section-header" style="color:#02bfc0;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #c8d4e0;padding-bottom:3px;margin-bottom:8px">Site Visit Images</div>
+    <div id="printImageGrid" class="print-img-grid"></div>
+  </div>
+
+  <!-- Exec summary moved to print header (first page) -->
+
+  <!-- Spacer -->
+  <div style="height:24px"></div>
+</div><!-- /#dashboard -->
+
+<!-- HIDDEN FILE INPUT -->
+<input type="file" id="fileInputHdr" accept=".csv,.txt,.xls,.xlsx" style="display:none">
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  PARSER FRAMEWORK
+// ═══════════════════════════════════════════════════════════════
+const ParserRegistry = {
+  parsers: [],
+  register(name, detectFn, parseFn) { this.parsers.push({ name, detectFn, parseFn }); },
+  parse(text) {
+    for (const p of this.parsers) {
+      if (p.detectFn(text)) return { format: p.name, ...p.parseFn(text) };
+    }
+    throw new Error('Unrecognised meter data format. Currently supported: NEM12.');
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  NEM12 PARSER
+// ═══════════════════════════════════════════════════════════════
+ParserRegistry.register('NEM12',
+  text => /^100[,\s]*NEM12/i.test(text.trim()),
+  function parseNEM12(text) {
+    const result = {
+      nmi: null, meterSerial: null, fileCreated: null, fromParticipant: null,
+      channels: {} // key = NMI suffix (E1, B1, Q1, K1, T1)
+    };
+
+    let currentChannel = null;
+    const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) continue;
+      const f = line.split(',');
+      const rec = f[0];
+
+      if (rec === '100') {
+        result.fileCreated  = f[2] || '';
+        result.fromParticipant = f[3] || '';
+
+      } else if (rec === '200') {
+        // 200,NMI,NMIConfig,RegisterID,NMISuffix,MDMDataStream,MeterSerial,UOM,IntervalLength,...
+        const nmi           = f[1] || '';
+        const suffix        = (f[4] || '').trim();
+        const meterSerial   = (f[6] || '').trim();
+        const unit          = (f[7] || 'KWH').trim().toUpperCase();
+        const intervalLen   = parseInt(f[8]) || 30;
+
+        if (nmi)         result.nmi         = nmi;
+        if (meterSerial) result.meterSerial  = meterSerial;
+
+        if (!result.channels[suffix]) {
+          result.channels[suffix] = {
+            suffix, unit, intervalLen,
+            data: {},     // YYYYMMDD -> { values: [], qualityFlag, updateDT }
+          };
+        }
+        currentChannel = result.channels[suffix];
+
+      } else if (rec === '300') {
+        if (!currentChannel) continue;
+        const dateStr    = f[1] || '';
+        if (dateStr.length !== 8) continue;
+        const n = Math.round(1440 / currentChannel.intervalLen);
+        const values = [];
+        for (let i = 0; i < n; i++) {
+          const v = parseFloat(f[2 + i]);
+          values.push(isNaN(v) ? 0 : v);
+        }
+        const qualityFlag = (f[2 + n] || 'A').trim();
+        const updateDT    = (f[2 + n + 3] || '').trim();
+
+        // Merge: keep entry if newer updateDT or first seen
+        const existing = currentChannel.data[dateStr];
+        if (!existing || (updateDT && updateDT > (existing.updateDT || ''))) {
+          currentChannel.data[dateStr] = { values, qualityFlag, updateDT };
+        }
+
+      } else if (rec === '400') {
+        // 400,StartInterval,EndInterval,QualityMethod,ReasonCode,ReasonDesc
+        // Mark parent day intervals as substituted/estimated
+        // Implementation: flag already captured from 300 row quality field
+      }
+      // 500, 900 — ignored for data purposes
+    }
+
+    // Compute overall date range
+    const allDates = Object.values(result.channels)
+      .flatMap(ch => Object.keys(ch.data)).sort();
+    result.dateRange = allDates.length
+      ? { start: allDates[0], end: allDates[allDates.length - 1] }
+      : null;
+
+    return result;
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════
+//  SYNERGY HALFHOURLY XLS PARSER
+//  Handles the "Export" sheet format from Synergy's online dashboard:
+//  Columns: Date | Time | OFF PEAK | PEAK | SUPER OFFPEAK | Generation | Meter reading status
+// ═══════════════════════════════════════════════════════════════
+function parseSynergyXLS(workbook) {
+  // Find the Export sheet (or fall back to first sheet)
+  const sheetName = workbook.SheetNames.includes('Export')
+    ? 'Export'
+    : workbook.SheetNames[0];
+  const ws = workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+  if (rows.length < 2) throw new Error('Synergy XLS: sheet appears empty.');
+
+  // Validate header row
+  const hdr = rows[0].map(h => String(h).trim().toUpperCase());
+  const COL_DATE   = hdr.findIndex(h => h === 'DATE');
+  const COL_TIME   = hdr.findIndex(h => h === 'TIME');
+  const COL_OFFPK  = hdr.findIndex(h => h.includes('OFF PEAK') && !h.includes('SUPER'));
+  const COL_PEAK   = hdr.findIndex(h => h === 'PEAK');
+  const COL_SUPER  = hdr.findIndex(h => h.includes('SUPER'));
+  const COL_GEN    = hdr.findIndex(h => h === 'GENERATION');
+
+  if (COL_DATE < 0 || COL_TIME < 0)
+    throw new Error('Synergy XLS: could not find Date/Time columns. Is this a Synergy half-hourly export?');
+
+  const result = {
+    format: 'SynergyHalfHourly',
+    nmi: null,
+    meterSerial: null,
+    fileCreated: null,
+    fromParticipant: 'Synergy',
+    channels: {
+      E1: { suffix: 'E1', unit: 'KWH', intervalLen: 30, data: {} },
+      B1: { suffix: 'B1', unit: 'KWH', intervalLen: 30, data: {} }
+    }
+  };
+
+  // Helper: parse DD/MM/YYYY or Excel serial date → YYYYMMDD string
+  function toDateKey(raw) {
+    if (typeof raw === 'number') {
+      // Excel serial date — SheetJS keeps as number when defval is used
+      const d = XLSX.SSF.parse_date_code(raw);
+      if (d) {
+        const mm = String(d.m).padStart(2, '0');
+        const dd = String(d.d).padStart(2, '0');
+        return `${d.y}${mm}${dd}`;
+      }
+    }
+    const s = String(raw).trim();
+    // DD/MM/YYYY
+    const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (m) return `${m[3]}${m[2]}${m[1]}`;
+    // YYYY-MM-DD (ISO)
+    const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return `${iso[1]}${iso[2]}${iso[3]}`;
+    return null;
+  }
+
+  // Helper: HH:MM or decimal fraction → interval index (0-47 for 30-min)
+  function toInterval(raw) {
+    if (typeof raw === 'number') {
+      // Excel time fraction: 0.0 = 00:00, 0.5 = 12:00
+      const totalMins = Math.round(raw * 1440);
+      return Math.floor(totalMins / 30);
+    }
+    const s = String(raw).trim();
+    const m = s.match(/^(\d{1,2}):(\d{2})/);
+    if (!m) return -1;
+    return Math.floor((parseInt(m[1]) * 60 + parseInt(m[2])) / 30);
+  }
+
+  function safeNum(v) {
+    const n = parseFloat(v);
+    return isNaN(n) ? 0 : n;
+  }
+
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    const dateKey = toDateKey(row[COL_DATE]);
+    if (!dateKey) continue;
+
+    const idx = toInterval(row[COL_TIME]);
+    if (idx < 0 || idx > 47) continue;
+
+    // Total import = sum of whichever tariff column is populated
+    const importKwh =
+      safeNum(COL_OFFPK >= 0 ? row[COL_OFFPK] : 0) +
+      safeNum(COL_PEAK  >= 0 ? row[COL_PEAK]  : 0) +
+      safeNum(COL_SUPER >= 0 ? row[COL_SUPER] : 0);
+
+    const genKwh = safeNum(COL_GEN >= 0 ? row[COL_GEN] : 0);
+
+    // Ensure day arrays exist (48 slots)
+    if (!result.channels.E1.data[dateKey]) {
+      result.channels.E1.data[dateKey] = { values: new Array(48).fill(0), qualityFlag: 'A', updateDT: '' };
+    }
+    if (!result.channels.B1.data[dateKey]) {
+      result.channels.B1.data[dateKey] = { values: new Array(48).fill(0), qualityFlag: 'A', updateDT: '' };
+    }
+
+    result.channels.E1.data[dateKey].values[idx] = importKwh;
+    result.channels.B1.data[dateKey].values[idx] = genKwh;
+  }
+
+  // Drop B1 channel entirely if it has no generation data
+  const b1HasData = Object.values(result.channels.B1.data)
+    .some(day => day.values.some(v => v > 0));
+  if (!b1HasData) delete result.channels.B1;
+
+  // Compute date range
+  const allDates = Object.keys(result.channels.E1.data).sort();
+  result.dateRange = allDates.length
+    ? { start: allDates[0], end: allDates[allDates.length - 1] }
+    : null;
+
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ANALYTICS ENGINE
+// ═══════════════════════════════════════════════════════════════
+const Analytics = {
+  // Parse YYYYMMDD → Date
+  parseDate(s) {
+    return new Date(+s.slice(0,4), +s.slice(4,6)-1, +s.slice(6,8));
+  },
+  fmtDate(s) {
+    const d = this.parseDate(s);
+    return d.toLocaleDateString('en-AU', { day:'2-digit', month:'short', year:'numeric' });
+  },
+  fmtMonth(yyyymm) {
+    return new Date(+yyyymm.slice(0,4), +yyyymm.slice(4,6)-1, 1)
+      .toLocaleDateString('en-AU', { month:'short', year:'numeric' });
+  },
+
+  // Convert kWh per interval → kW demand
+  toKW(kWh, intervalLen) { return kWh / (intervalLen / 60); },
+
+  // Filter channel data by date range (YYYYMMDD strings, inclusive)
+  filterChannel(ch, fromStr, toStr) {
+    const filtered = { ...ch, data: {} };
+    for (const [d, v] of Object.entries(ch.data)) {
+      if ((!fromStr || d >= fromStr) && (!toStr || d <= toStr)) {
+        filtered.data[d] = v;
+      }
+    }
+    return filtered;
+  },
+
+  dailyTotals(ch) {
+    return Object.entries(ch.data)
+      .sort(([a],[b]) => a < b ? -1 : 1)
+      .map(([dateStr, day]) => ({
+        dateStr,
+        date: this.parseDate(dateStr),
+        total: day.values.reduce((s,v) => s+v, 0),
+        qualityFlag: day.qualityFlag
+      }));
+  },
+
+  monthlyTotals(ch) {
+    const map = {};
+    for (const [d, day] of Object.entries(ch.data)) {
+      const m = d.slice(0,6);
+      if (!map[m]) map[m] = 0;
+      map[m] += day.values.reduce((s,v) => s+v, 0);
+    }
+    return Object.entries(map).sort(([a],[b])=>a<b?-1:1)
+      .map(([m, total]) => ({ month: m, total }));
+  },
+
+  avgDayProfile(ch, filter = 'all') {
+    const n    = Math.round(1440 / ch.intervalLen);
+    const sums = new Array(n).fill(0);
+    const cnt  = new Array(n).fill(0);
+    const mult = 60 / ch.intervalLen;
+    for (const [dateStr, day] of Object.entries(ch.data)) {
+      const dow = this.parseDate(dateStr).getDay();
+      if (filter === 'weekday' && (dow === 0 || dow === 6)) continue;
+      if (filter === 'weekend' && dow !== 0 && dow !== 6) continue;
+      day.values.forEach((v, i) => { sums[i] += v * mult; cnt[i]++; });
+    }
+    return sums.map((s, i) => cnt[i] ? s / cnt[i] : 0);
+  },
+
+  peakDemand(ch) {
+    let peak = 0, peakDate = null, peakIdx = -1;
+    const mult = 60 / ch.intervalLen;
+    for (const [dateStr, day] of Object.entries(ch.data)) {
+      day.values.forEach((v, i) => {
+        const kw = v * mult;
+        if (kw > peak) { peak = kw; peakDate = dateStr; peakIdx = i; }
+      });
+    }
+    return { peak, peakDate, peakIdx };
+  },
+
+  loadDurationCurve(ch, step = 100) {
+    const mult = 60 / ch.intervalLen;
+    const demands = Object.values(ch.data)
+      .flatMap(d => d.values.map(v => v * mult))
+      .sort((a, b) => b - a);
+    const total = demands.length;
+    const result = [];
+    for (let i = 0; i < total; i += step) {
+      result.push({ pct: (i / total) * 100, demand: demands[i] });
+    }
+    result.push({ pct: 100, demand: demands[total-1] || 0 });
+    return result;
+  },
+
+  connectionUtilisation(ch, connectionKVA) {
+    const mult = 60 / ch.intervalLen;
+    let peak = 0, exceedCount = 0, total = 0;
+    for (const day of Object.values(ch.data)) {
+      day.values.forEach(v => {
+        const kw = v * mult;
+        if (kw > peak) peak = kw;
+        if (kw > connectionKVA) exceedCount++;
+        total++;
+      });
+    }
+    return {
+      peak, connectionKVA,
+      utilPct: (peak / connectionKVA) * 100,
+      exceedHours: exceedCount * (ch.intervalLen / 60),
+      exceedPct: (exceedCount / total) * 100
+    };
+  },
+
+  qualityStats(ch) {
+    let A=0, S=0, E=0, other=0, total=0;
+    for (const day of Object.values(ch.data)) {
+      const n = day.values.length;
+      total += n;
+      if      (day.qualityFlag === 'A') A += n;
+      else if (day.qualityFlag === 'S') S += n;
+      else if (day.qualityFlag === 'E') E += n;
+      else                              other += n;
+    }
+    return { A, S, E, other, total, pctActual: total ? (A/total)*100 : 0 };
+  },
+
+  powerFactor(e1Ch, q1Ch) {
+    if (!e1Ch || !q1Ch) return null;
+    let sumW = 0, sumVAr = 0;
+    const mult = 60 / e1Ch.intervalLen;
+    for (const [d, day] of Object.entries(e1Ch.data)) {
+      const q1Day = q1Ch.data[d];
+      if (!q1Day) continue;
+      day.values.forEach((v, i) => {
+        sumW   += v * mult;
+        sumVAr += (q1Day.values[i] || 0) * mult;
+      });
+    }
+    if (sumW === 0) return null;
+    return Math.cos(Math.atan(sumVAr / sumW));
+  },
+
+  batteryRecommendation(b1Ch, e1Ch) {
+    if (!b1Ch || Object.keys(b1Ch.data).length === 0) return null;
+    const exports = Object.values(b1Ch.data).map(d => d.values.reduce((s,v)=>s+v,0));
+    const avgDaily = exports.reduce((s,v)=>s+v,0) / exports.length;
+    const peakDaily = Math.max(...exports);
+    const profile = this.avgDayProfile(b1Ch);
+    const peakExportKW = Math.max(...profile) * (60 / b1Ch.intervalLen);
+
+    const sizes = [5, 10, 13.5, 20, 30, 40, 50, 75, 100];
+    const eff = 0.9;
+    const sizeAnalysis = sizes.map(cap => {
+      let captured = 0, totalExport = 0;
+      for (const day of Object.values(b1Ch.data)) {
+        const daily = day.values.reduce((s,v)=>s+v,0);
+        totalExport += daily;
+        captured += Math.min(daily, cap * eff);
+      }
+      return { cap, captureRate: totalExport ? (captured/totalExport)*100 : 0 };
+    });
+
+    const rec80 = sizeAnalysis.find(s => s.captureRate >= 80);
+    const rec90 = sizeAnalysis.find(s => s.captureRate >= 90);
+
+    return { avgDaily, peakDaily, peakExportKW, sizeAnalysis, rec80, rec90 };
+  },
+
+  // Solar generation estimate (B1 export is surplus; self-consumption not directly measurable)
+  solarEstimate(e1Ch, b1Ch) {
+    if (!b1Ch) return null;
+    const b1daily = this.dailyTotals(b1Ch);
+    const e1daily = this.dailyTotals(e1Ch);
+    const e1map = {};
+    e1daily.forEach(d => { e1map[d.dateStr] = d.total; });
+
+    // Minimum daytime consumption ≈ self-consumed solar
+    // Approximate: on days with high export, night load ≈ baseline
+    // We estimate avg overnight consumption as proxy for baseline
+    const avgNight = this._avgNightload(e1Ch);
+    const b1totals = b1daily.map(d => d.total);
+    const avgExport = b1totals.reduce((s,v)=>s+v,0) / b1totals.length;
+
+    return { avgExport, avgNight };
+  },
+
+  _avgNightload(e1Ch) {
+    // Intervals 0-11 (midnight–6am) and 44-47 (10pm–midnight)
+    const nightIntervals = [...Array(12).keys(), 44, 45, 46, 47];
+    let sum = 0, cnt = 0;
+    for (const day of Object.values(e1Ch.data)) {
+      nightIntervals.forEach(i => {
+        if (day.values[i] !== undefined) { sum += day.values[i]; cnt++; }
+      });
+    }
+    return cnt ? (sum/cnt) * (60/e1Ch.intervalLen) : 0; // kW
+  },
+
+  // Build time-series label array between two dates
+  intervalLabels(intervalLen) {
+    const labels = [];
+    const n = Math.round(1440 / intervalLen);
+    for (let i = 0; i < n; i++) {
+      const h = Math.floor(i * intervalLen / 60);
+      const m = (i * intervalLen) % 60;
+      labels.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
+    }
+    return labels;
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  CHART MANAGER
+// ═══════════════════════════════════════════════════════════════
+const Charts = {};
+
+const CHART_DEFAULTS = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { labels: { color: '#7a9cc4', font: { size: 11 } } }, tooltip: { backgroundColor: '#1e2a3a', borderColor: '#2a3a50', borderWidth: 1, titleColor: '#e8f0fe', bodyColor: '#7a9cc4' } },
+  scales: {
+    x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#7a9cc4', font: { size: 10 } } },
+    y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#7a9cc4', font: { size: 10 } } }
+  }
+};
+
+function destroyChart(id) { if (Charts[id]) { Charts[id].destroy(); delete Charts[id]; } }
+
+function renderTimeline(e1data, b1data, type = 'bar') {
+  destroyChart('timeline');
+  const labels = e1data.map(d => d.date.toLocaleDateString('en-AU', { day:'2-digit', month:'short', year:'2-digit' }));
+  const datasets = [
+    { label: 'Import E1 (kWh)', data: e1data.map(d => +d.total.toFixed(1)), backgroundColor: type==='bar' ? 'rgba(79,156,249,0.6)' : 'rgba(79,156,249,0.15)', borderColor: '#4f9cf9', borderWidth: type==='line'?1.5:0, fill: type==='line', tension: 0.3, pointRadius: 0 }
+  ];
+  if (b1data && b1data.length) {
+    datasets.push({ label: 'Export B1 (kWh)', data: b1data.map(d => +d.total.toFixed(1)), backgroundColor: type==='bar' ? 'rgba(245,166,35,0.6)' : 'rgba(245,166,35,0.15)', borderColor: '#f5a623', borderWidth: type==='line'?1.5:0, fill: type==='line', tension: 0.3, pointRadius: 0 });
+  }
+  const ctx = document.getElementById('chartTimeline').getContext('2d');
+  Charts.timeline = new Chart(ctx, {
+    type,
+    data: { labels, datasets },
+    options: {
+      ...CHART_DEFAULTS,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { ...CHART_DEFAULTS.plugins, tooltip: { ...CHART_DEFAULTS.plugins.tooltip, callbacks: {
+        label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString('en-AU', {minimumFractionDigits:1})} kWh`
+      }}},
+      scales: { ...CHART_DEFAULTS.scales,
+        x: { ...CHART_DEFAULTS.scales.x, ticks: { ...CHART_DEFAULTS.scales.x.ticks, maxTicksLimit: 24, maxRotation: 0 } },
+        y: { ...CHART_DEFAULTS.scales.y, title: { display: true, text: 'kWh / day', color: '#7a9cc4', font:{size:10} } }
+      }
+    }
+  });
+}
+
+function renderProfile(e1Profile, b1Profile, labels, filter) {
+  destroyChart('profile');
+  const datasets = [
+    { label: 'Import E1 (kW)', data: e1Profile.map(v => +v.toFixed(2)), borderColor: '#4f9cf9', backgroundColor: 'rgba(79,156,249,0.1)', fill: true, tension: 0.4, pointRadius: 0, borderWidth: 1.5 }
+  ];
+  if (b1Profile) {
+    datasets.push({ label: 'Export B1 (kW)', data: b1Profile.map(v => +v.toFixed(2)), borderColor: '#f5a623', backgroundColor: 'rgba(245,166,35,0.1)', fill: true, tension: 0.4, pointRadius: 0, borderWidth: 1.5 });
+  }
+  const ctx = document.getElementById('chartProfile').getContext('2d');
+  Charts.profile = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      ...CHART_DEFAULTS,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { ...CHART_DEFAULTS.plugins, tooltip: { ...CHART_DEFAULTS.plugins.tooltip, callbacks: {
+        label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)} kW`
+      }}},
+      scales: { ...CHART_DEFAULTS.scales,
+        x: { ...CHART_DEFAULTS.scales.x, ticks: { ...CHART_DEFAULTS.scales.x.ticks, maxTicksLimit: 12 } },
+        y: { ...CHART_DEFAULTS.scales.y, title: { display: true, text: 'Average kW', color: '#7a9cc4', font:{size:10} }, min: 0 }
+      }
+    }
+  });
+}
+
+function renderMonthly(e1monthly, b1monthly) {
+  destroyChart('monthly');
+  const allMonths = [...new Set([...e1monthly.map(d=>d.month), ...(b1monthly||[]).map(d=>d.month)])].sort();
+  const e1map = Object.fromEntries(e1monthly.map(d=>[d.month, d.total]));
+  const b1map = b1monthly ? Object.fromEntries(b1monthly.map(d=>[d.month, d.total])) : {};
+  const labels = allMonths.map(m => Analytics.fmtMonth(m));
+  const datasets = [
+    { label: 'Import E1 (kWh)', data: allMonths.map(m => +(e1map[m]||0).toFixed(0)), backgroundColor: 'rgba(79,156,249,0.7)', borderRadius: 3 }
+  ];
+  if (b1monthly && b1monthly.length) {
+    datasets.push({ label: 'Export B1 (kWh)', data: allMonths.map(m => +(b1map[m]||0).toFixed(0)), backgroundColor: 'rgba(245,166,35,0.7)', borderRadius: 3 });
+  }
+  const ctx = document.getElementById('chartMonthly').getContext('2d');
+  Charts.monthly = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      ...CHART_DEFAULTS,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { ...CHART_DEFAULTS.plugins },
+      scales: { ...CHART_DEFAULTS.scales,
+        x: { ...CHART_DEFAULTS.scales.x, ticks: { ...CHART_DEFAULTS.scales.x.ticks, maxRotation: 45 } },
+        y: { ...CHART_DEFAULTS.scales.y, title: { display: true, text: 'kWh', color: '#7a9cc4', font:{size:10} } }
+      }
+    }
+  });
+}
+
+function renderLDC(ldcData, connectionKVA, canvasId = 'chartLDC') {
+  destroyChart(canvasId);
+  const datasets = [
+    { label: 'Demand (kW)', data: ldcData.map(d=>({x:+d.pct.toFixed(2), y:+d.demand.toFixed(1)})), borderColor: '#4f9cf9', backgroundColor: 'rgba(79,156,249,0.1)', fill: true, tension: 0, pointRadius: 0, borderWidth: 1.5 }
+  ];
+  if (connectionKVA) {
+    datasets.push({ label: `Connection: ${connectionKVA} kVA`, data: [{x:0,y:connectionKVA},{x:100,y:connectionKVA}], borderColor: '#f87171', borderDash: [5,3], pointRadius: 0, borderWidth: 1.5, fill: false });
+  }
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  Charts[canvasId] = new Chart(ctx, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      ...CHART_DEFAULTS,
+      parsing: false,
+      plugins: { ...CHART_DEFAULTS.plugins, tooltip: { ...CHART_DEFAULTS.plugins.tooltip, callbacks: {
+        title: items => `${items[0].parsed.x.toFixed(1)}% of time`,
+        label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)} kW`
+      }}},
+      scales: {
+        x: { ...CHART_DEFAULTS.scales.x, type:'linear', title:{display:true,text:'% of Time',color:'#7a9cc4',font:{size:10}}, min:0, max:100 },
+        y: { ...CHART_DEFAULTS.scales.y, title:{display:true,text:'Demand (kW)',color:'#7a9cc4',font:{size:10}}, min:0 }
+      }
+    }
+  });
+}
+
+function renderReactive(q1Profile, k1Profile, labels) {
+  destroyChart('reactive');
+  const reactiveCanvas = document.getElementById('chartReactive');
+  const reactiveWrap   = reactiveCanvas.parentElement;
+  const reactiveBox    = reactiveWrap.parentElement;
+
+  if (!q1Profile && !k1Profile) {
+    reactiveBox.style.opacity = '0.4';
+    reactiveWrap.querySelector('.print-chart-img')?.remove();
+    return;
+  }
+
+  reactiveBox.style.opacity = '1';
+  const datasets = [];
+  if (q1Profile) datasets.push({ label: 'Reactive Import Q1 (kVAr)', data: q1Profile.map(v=>+v.toFixed(2)), borderColor: '#a78bfa', backgroundColor: 'rgba(167,139,250,0.1)', fill: true, tension: 0.4, pointRadius: 0, borderWidth: 1.5 });
+  if (k1Profile) datasets.push({ label: 'Reactive Export K1 (kVAr)', data: k1Profile.map(v=>+v.toFixed(2)), borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.1)', fill: true, tension: 0.4, pointRadius: 0, borderWidth: 1.5 });
+  const ctx = reactiveCanvas.getContext('2d');
+  Charts.reactive = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      ...CHART_DEFAULTS,
+      interaction: { mode: 'index', intersect: false },
+      scales: { ...CHART_DEFAULTS.scales,
+        x: { ...CHART_DEFAULTS.scales.x, ticks: { ...CHART_DEFAULTS.scales.x.ticks, maxTicksLimit: 12 } },
+        y: { ...CHART_DEFAULTS.scales.y, title: { display: true, text: 'Average kVAr', color: '#7a9cc4', font:{size:10} }, min: 0 }
+      }
+    }
+  });
+}
+
+function renderSelectedDayProfile(labels, series) {
+  destroyChart('dayProfile');
+  const datasets = [];
+  if (series.E1) datasets.push({ label: 'Import E1 (kW)', data: series.E1, borderColor: '#4f9cf9', backgroundColor: 'rgba(79,156,249,0.08)', fill: true, tension: 0.25, pointRadius: 0, borderWidth: 1.5 });
+  if (series.B1) datasets.push({ label: 'Export B1 (kW)', data: series.B1, borderColor: '#f5a623', backgroundColor: 'rgba(245,166,35,0.08)', fill: true, tension: 0.25, pointRadius: 0, borderWidth: 1.5 });
+  if (series.Q1) datasets.push({ label: 'Reactive Q1 (kVAr)', data: series.Q1, borderColor: '#a78bfa', backgroundColor: 'rgba(167,139,250,0.06)', fill: false, tension: 0.25, pointRadius: 0, borderWidth: 1.2, yAxisID: 'y1' });
+  if (series.K1) datasets.push({ label: 'Reactive K1 (kVAr)', data: series.K1, borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.06)', fill: false, tension: 0.25, pointRadius: 0, borderWidth: 1.2, yAxisID: 'y1' });
+
+  const ctx = document.getElementById('chartDayProfile').getContext('2d');
+  Charts.dayProfile = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      ...CHART_DEFAULTS,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { ...CHART_DEFAULTS.plugins },
+      scales: {
+        ...CHART_DEFAULTS.scales,
+        x: { ...CHART_DEFAULTS.scales.x, ticks: { ...CHART_DEFAULTS.scales.x.ticks, maxTicksLimit: 12 } },
+        y: { ...CHART_DEFAULTS.scales.y, title: { display: true, text: 'kW', color: '#7a9cc4', font:{size:10} }, min: 0 },
+        y1: {
+          position: 'right',
+          grid: { drawOnChartArea: false },
+          ticks: { color: '#7a9cc4', font: { size: 10 } },
+          title: { display: true, text: 'kVAr', color: '#7a9cc4', font:{size:10} },
+          min: 0
+        }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  HEATMAP RENDERER
+// ═══════════════════════════════════════════════════════════════
+function renderHeatmap(dailyMap, label) {
+  const container = document.getElementById('heatmapContainer');
+  container.innerHTML = '';
+  if (!dailyMap || Object.keys(dailyMap).length === 0) {
+    container.innerHTML = '<p style="color:var(--muted);font-size:12px;padding:16px">No data for this channel.</p>';
+    return;
+  }
+
+  const dates = Object.keys(dailyMap).sort();
+  const vals  = dates.map(d => dailyMap[d]);
+  const maxVal = Math.max(...vals);
+
+  // Build colour interpolator: low=dark navy, high=bright colour
+  function cellColor(v) {
+    const t = maxVal > 0 ? v / maxVal : 0;
+    if (App._hmChannel === 'B1') {
+      // Orange scale for export
+      const r = Math.round(30 + t * 225);
+      const g = Math.round(40 + t * 120);
+      const b = Math.round(60 + t * 0);
+      return `rgb(${r},${g},${b})`;
+    } else if (false) {
+      // Blue scale for import / peak
+      const r = Math.round(15 + t * 20);
+      const g = Math.round(30 + t * 70);
+      const b = Math.round(50 + t * 180);
+      return `rgb(${r},${g},${b})`;
+    }
+  }
+
+  // Group dates into ISO weeks
+  const startDate = Analytics.parseDate(dates[0]);
+  const endDate   = Analytics.parseDate(dates[dates.length - 1]);
+
+  // Build week columns
+  let current = new Date(startDate);
+  // Rewind to Sunday
+  current.setDate(current.getDate() - current.getDay());
+
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  const wrap = document.createElement('div');
+  wrap.className = 'heatmap-wrap';
+
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:flex;gap:0;';
+
+  // Left labels
+  const dayLabels = document.createElement('div');
+  dayLabels.className = 'heatmap-days';
+  dayLabels.innerHTML = '<div style="height:16px"></div>'; // spacer for month row
+  dayNames.forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'heatmap-day-label';
+    el.textContent = d.slice(0,1); // just initial
+    dayLabels.appendChild(el);
+  });
+  grid.appendChild(dayLabels);
+
+  // Weeks container
+  const weeksEl   = document.createElement('div');
+  weeksEl.style.cssText = 'display:flex;gap:2px;overflow:hidden;';
+
+  const monthLabelPositions = {}; // weekIndex -> month name
+
+  let weekIndex = 0;
+  const dailyMapLocal = dailyMap;
+  const dateRef = d => {
+    const y = d.getFullYear(), mo = d.getMonth(), day = d.getDate();
+    return `${y}${String(mo+1).padStart(2,'0')}${String(day).padStart(2,'0')}`;
+  };
+
+  while (current <= endDate || current.getDay() !== 0) {
+    const weekEl = document.createElement('div');
+    weekEl.style.cssText = 'display:flex;flex-direction:column;gap:2px;';
+
+    // Month header spacer
+    const monthHeader = document.createElement('div');
+    monthHeader.style.cssText = 'height:16px;font-size:10px;color:var(--muted);white-space:nowrap;';
+
+    // Check if this week starts a new month
+    const sundayDate = new Date(current);
+    const month0 = sundayDate.getMonth();
+    const prevMonth = weekIndex > 0 ? new Date(sundayDate.getTime() - 7*86400000).getMonth() : -1;
+    if (weekIndex === 0 || month0 !== prevMonth) {
+      monthHeader.textContent = monthNames[month0];
+    }
+    weekEl.appendChild(monthHeader);
+
+    for (let dow = 0; dow < 7; dow++) {
+      const d = new Date(current);
+      d.setDate(d.getDate() + dow);
+      const key = dateRef(d);
+      const cell = document.createElement('div');
+      cell.className = 'heatmap-cell';
+      if (d >= startDate && d <= endDate && dailyMapLocal[key] !== undefined) {
+        const v = dailyMapLocal[key];
+        cell.style.background = cellColor(v);
+        cell.title = `${d.toLocaleDateString('en-AU')}: ${v.toFixed(1)} ${label}`;
+        cell.addEventListener('mouseenter', () => {
+          document.getElementById('hmTooltip').textContent =
+            `${d.toLocaleDateString('en-AU', {weekday:'short',day:'2-digit',month:'short',year:'numeric'})}: ${v.toFixed(1)} ${label}`;
+        });
+      } else {
+        cell.style.background = 'var(--surface2)';
+        cell.style.opacity = '0.3';
+      }
+      weekEl.appendChild(cell);
+    }
+
+    weeksEl.appendChild(weekEl);
+    current.setDate(current.getDate() + 7);
+    weekIndex++;
+    if (weekIndex > 200) break; // safety
+  }
+
+  grid.appendChild(weeksEl);
+  wrap.appendChild(grid);
+
+  // Legend
+  const legend = document.createElement('div');
+  legend.className = 'heatmap-legend';
+  legend.innerHTML = '<span>Less</span>';
+  const lcells = document.createElement('div');
+  lcells.className = 'heatmap-legend-cells';
+  [0, 0.25, 0.5, 0.75, 1].forEach(t => {
+    const c = document.createElement('div');
+    c.className = 'heatmap-cell';
+    c.style.cssText = `background:${cellColor(t * maxVal)};cursor:default;`;
+    lcells.appendChild(c);
+  });
+  legend.appendChild(lcells);
+  legend.innerHTML += '<span>More</span>';
+  legend.insertBefore(lcells, legend.lastChild);
+  wrap.appendChild(legend);
+
+  container.appendChild(wrap);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  RECOMMENDATION RENDERER
+// ═══════════════════════════════════════════════════════════════
+function renderRecommendations(meterData, filtered) {
+  const el = document.getElementById('recommendations');
+  const e1 = filtered.E1, b1 = filtered.B1;
+  if (!e1) { el.innerHTML = '<p style="color:var(--muted)">No E1 import data found.</p>'; return; }
+
+  const e1totals = Analytics.dailyTotals(e1);
+  const totalImport = e1totals.reduce((s,d)=>s+d.total,0);
+  const avgDaily   = totalImport / e1totals.length;
+  const peakInfo   = Analytics.peakDemand(e1);
+  const qualStats  = Analytics.qualityStats(e1);
+  const pf         = Analytics.powerFactor(e1, filtered.Q1);
+  const daytimeLoad = estimateDaytimeLoad(e1);
+  const nightLoad   = Analytics._avgNightload(e1);
+
+  let html = `
+  <div class="rec-card">
+    <h3><span class="rec-icon">📊</span>Site Profile Summary</h3>
+    <div class="rec-item"><span class="rec-item-label">Total E1 Import</span><span class="rec-item-value">${(totalImport/1000).toFixed(1)} MWh</span></div>
+    <div class="rec-item"><span class="rec-item-label">Avg Daily Import</span><span class="rec-item-value">${avgDaily.toFixed(1)} kWh/day</span></div>
+    <div class="rec-item"><span class="rec-item-label">Peak Import Demand</span><span class="rec-item-value warn-text">${peakInfo.peak.toFixed(1)} kW</span></div>
+    <div class="rec-item"><span class="rec-item-label">Peak on</span><span class="rec-item-value">${peakInfo.peakDate ? Analytics.fmtDate(peakInfo.peakDate) : '—'}</span></div>
+    ${pf ? `<div class="rec-item"><span class="rec-item-label">Avg Power Factor</span><span class="rec-item-value ${pf < 0.9 ? 'warn-text' : 'highlight'}">${pf.toFixed(3)}</span></div>` : ''}
+    <div class="rec-item"><span class="rec-item-label">Data Quality</span><span class="rec-item-value ${qualStats.pctActual>95?'highlight':'warn-text'}">${qualStats.pctActual.toFixed(1)}% actual reads</span></div>
+  </div>`;
+
+  if (b1 && Object.keys(b1.data).length > 0) {
+    const batRec = Analytics.batteryRecommendation(b1, e1);
+    const b1totals = Analytics.dailyTotals(b1);
+    const totalExport = b1totals.reduce((s,d)=>s+d.total,0);
+    const lowExport = batRec.avgDaily < 5; // Less than 5 kWh/day avg export = minimal/no solar
+    const solarPotential = roundToNearest5(daytimeLoad * 0.8);
+    const additionalSolarPotential = roundToNearest5(Math.max(daytimeLoad * 0.35, 5));
+
+    if (lowExport) {
+      // Minimal export — site likely has no solar or very small system
+      html += `
+      <div class="rec-card" style="border-color:var(--export)">
+        <h3><span class="rec-icon">☀️</span>Solar Export (B1) — Very Low</h3>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">
+          B1 export is <b style="color:var(--export)">${batRec.avgDaily.toFixed(2)} kWh/day</b> average —
+          the site likely has no solar, or a very small system that is entirely self-consumed.
+        </div>
+        <div class="rec-item"><span class="rec-item-label">Total B1 Export (all time)</span><span class="rec-item-value">${totalExport.toFixed(0)} kWh</span></div>
+        <div class="rec-item"><span class="rec-item-label">Peak daily export</span><span class="rec-item-value">${batRec.peakDaily.toFixed(1)} kWh</span></div>
+        <div class="rec-item"><span class="rec-item-label">Export share of total energy</span><span class="rec-item-value">${totalImport > 0 ? (totalExport/totalImport*100).toFixed(2) : '—'}%</span></div>
+      </div>
+      <div class="rec-card" style="border-color:var(--export)">
+        <h3><span class="rec-icon">🌞</span>Solar Installation Potential</h3>
+        <div class="rec-item"><span class="rec-item-label">Avg daytime load (8am–4pm)</span><span class="rec-item-value">${daytimeLoad.toFixed(1)} kW</span></div>
+        <div class="rec-item"><span class="rec-item-label">Avg overnight base load</span><span class="rec-item-value">${nightLoad.toFixed(1)} kW</span></div>
+        <div class="rec-item"><span class="rec-item-label">Recommended solar size</span><span class="rec-item-value highlight">${solarPotential} kW</span></div>
+        <div class="rec-item"><span class="rec-item-label">Est. annual generation</span><span class="rec-item-value">${Math.round(solarPotential * 4.2 * 365 / 1000)} MWh/yr</span></div>
+        <div style="margin-top:10px;font-size:11px;color:var(--muted)">
+          Sizing at ~80% of avg daytime load minimises export and maximises self-consumption.
+          Assumes 4.2 peak sun hours/day (Perth average). Site assessment required.
+        </div>
+      </div>
+      <div class="rec-card">
+        <h3><span class="rec-icon">🔋</span>Battery + Solar Package</h3>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
+          Once solar is installed, battery sizing would be based on actual export profile.
+          Based on current overnight load of ${nightLoad.toFixed(1)} kW:
+        </div>
+        <div class="rec-item"><span class="rec-item-label">Est. useful overnight storage</span><span class="rec-item-value highlight">${Math.round(nightLoad * 4)} kWh</span></div>
+        <div class="rec-item"><span class="rec-item-label">Indicative battery size</span><span class="rec-item-value highlight">${Math.round(nightLoad * 4 / 5) * 5} kWh</span></div>
+        <div style="margin-top:10px;font-size:11px;color:var(--muted)">
+          Assumes 4hr overnight discharge window. Reassess after solar is commissioned.
+        </div>
+      </div>`;
+    } else {
+      // Meaningful export — solar system present
+      html += `
+      <div class="rec-card">
+        <h3><span class="rec-icon">☀️</span>Existing Solar — Export Analysis</h3>
+        <div class="rec-item"><span class="rec-item-label">Total B1 Export</span><span class="rec-item-value">${(totalExport/1000).toFixed(2)} MWh</span></div>
+        <div class="rec-item"><span class="rec-item-label">Avg Daily Export</span><span class="rec-item-value">${batRec.avgDaily.toFixed(1)} kWh/day</span></div>
+        <div class="rec-item"><span class="rec-item-label">Peak Daily Export</span><span class="rec-item-value">${batRec.peakDaily.toFixed(1)} kWh/day</span></div>
+        <div class="rec-item"><span class="rec-item-label">Self-Consumption Ratio</span><span class="rec-item-value">${totalImport+totalExport > 0 ? ((1 - totalExport/(totalImport+totalExport))*100).toFixed(1) : '—'}%</span></div>
+        <div class="rec-item"><span class="rec-item-label">Export Ratio</span><span class="rec-item-value">${totalImport+totalExport > 0 ? (totalExport/(totalImport+totalExport)*100).toFixed(1) : '—'}%</span></div>
+      </div>
+      <div class="rec-card">
+        <h3><span class="rec-icon">🔋</span>Battery Storage Recommendation</h3>
+        <div class="rec-item"><span class="rec-item-label">Avg export to capture</span><span class="rec-item-value">${batRec.avgDaily.toFixed(1)} kWh/day</span></div>
+        <div class="rec-item"><span class="rec-item-label">80% capture size</span><span class="rec-item-value highlight">${batRec.rec80 ? batRec.rec80.cap + ' kWh' : '> 100 kWh'}</span></div>
+        <div class="rec-item"><span class="rec-item-label">90% capture size</span><span class="rec-item-value highlight">${batRec.rec90 ? batRec.rec90.cap + ' kWh' : '> 100 kWh'}</span></div>
+        <div style="margin-top:10px;font-size:11px;color:var(--muted)">
+          <b style="color:var(--text)">Capture rate by size:</b><br>
+          ${batRec.sizeAnalysis.slice(0,6).map(s=>`${s.cap}kWh → ${s.captureRate.toFixed(0)}%`).join(' &nbsp;|&nbsp; ')}
+        </div>
+      </div>`;
+    }
+  } else {
+    html += `
+    <div class="rec-card">
+      <h3><span class="rec-icon">☀️</span>Solar Potential</h3>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">No B1 export channel detected — site may not have solar, or solar export is not metered separately.</div>
+      <div class="rec-item"><span class="rec-item-label">Daytime Load (avg)</span><span class="rec-item-value">${estimateDaytimeLoad(e1).toFixed(1)} kW</span></div>
+      <div class="rec-item"><span class="rec-item-label">Suggested Solar Size</span><span class="rec-item-value highlight">${roundToNearest5(estimateDaytimeLoad(e1) * 0.8)} kW</span></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--muted)">There is a clear opportunity to add solar based on sustained daytime demand. Site assessment required.</div>
+    </div>`;
+  }
+
+  if (pf && pf < 0.9) {
+    html += `
+    <div class="rec-card" style="border-color:var(--warn)">
+      <h3><span class="rec-icon">⚠️</span>Power Factor Alert</h3>
+      <div class="rec-item"><span class="rec-item-label">Measured PF</span><span class="rec-item-value warn-text">${pf.toFixed(3)}</span></div>
+      <div class="rec-item"><span class="rec-item-label">Target PF</span><span class="rec-item-value">≥ 0.900</span></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--muted)">
+        Low power factor may attract network tariff penalties from Western Power.
+        Power factor correction capacitors or smart inverter settings may be beneficial.
+      </div>
+    </div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+function estimateDaytimeLoad(e1Ch) {
+  // Average kW between 8am–4pm intervals (16–32 for 30-min)
+  let sum = 0, cnt = 0;
+  const mult = 60 / e1Ch.intervalLen;
+  for (const day of Object.values(e1Ch.data)) {
+    for (let i = 16; i <= 32; i++) {
+      if (day.values[i]) { sum += day.values[i] * mult; cnt++; }
+    }
+  }
+  return cnt ? sum / cnt : 0;
+}
+
+function roundToNearest5(v) {
+  return Math.max(5, Math.round(v / 5) * 5);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  APP CONTROLLER
+// ═══════════════════════════════════════════════════════════════
+const App = {
+  meterData: null,
+  _profileFilter: 'all',
+  _timelineType: 'bar',
+  _hmChannel: 'E1',
+  _dateFrom: null,
+  _dateTo: null,
+  _inspectionDate: null,
+  _usePrintImages: false,
+
+  load(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const text = e.target.result;
+        this.meterData = ParserRegistry.parse(text);
+        document.getElementById('errorMsg').textContent = '';
+        this.renderDashboard();
+      } catch(err) {
+        document.getElementById('errorMsg').textContent = '⚠ ' + err.message;
+      }
+    };
+    reader.readAsText(file);
+  },
+
+  loadXls(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array', cellDates: false });
+        this.meterData = parseSynergyXLS(wb);
+        document.getElementById('errorMsg').textContent = '';
+        this.renderDashboard();
+      } catch(err) {
+        document.getElementById('errorMsg').textContent = '⚠ ' + err.message;
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  },
+
+  getFiltered() {
+    if (!this.meterData) return {};
+    const filtered = {};
+    for (const [key, ch] of Object.entries(this.meterData.channels)) {
+      filtered[key] = (this._dateFrom || this._dateTo)
+        ? Analytics.filterChannel(ch, this._dateFrom, this._dateTo)
+        : ch;
+    }
+    return filtered;
+  },
+
+  _getInspectableDates(filtered = this.getFiltered()) {
+    const allDates = new Set();
+    Object.values(filtered).forEach(ch => {
+      Object.keys(ch?.data || {}).forEach(d => allDates.add(d));
+    });
+    return [...allDates].sort();
+  },
+
+  _toInputDate(v) {
+    return v ? `${v.slice(0,4)}-${v.slice(4,6)}-${v.slice(6,8)}` : '';
+  },
+
+  _fromInputDate(v) {
+    return v ? v.replace(/-/g, '') : null;
+  },
+
+  // ── SITE IMAGES ──────────────────────────────────────────────────────
+  _images: [], // [{ dataURL, caption }]
+
+  addImages(event) {
+    const files = Array.from(event.target.files);
+    event.target.value = ''; // allow re-adding same file
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        this._images.push({ dataURL: e.target.result, caption: '' });
+        this._renderImageGrid();
+      };
+      reader.readAsDataURL(file);
+    });
+  },
+
+  removeImage(idx) {
+    this._images.splice(idx, 1);
+    this._renderImageGrid();
+  },
+
+  _renderImageGrid() {
+    const grid = document.getElementById('imageGrid');
+    const msg  = document.getElementById('noImagesMsg');
+    msg.style.display  = this._images.length ? 'none' : 'block';
+    grid.innerHTML = '';
+    this._images.forEach((img, i) => {
+      const item = document.createElement('div');
+      item.className = 'img-item';
+      item.innerHTML = `
+        <img src="${img.dataURL}" alt="Site image ${i+1}">
+        <button class="img-remove-btn" onclick="App.removeImage(${i})" title="Remove">✕</button>
+        <div class="img-item-caption">
+          <input type="text" placeholder="Caption (optional)" value="${img.caption.replace(/"/g,'&quot;')}"
+                 oninput="App._images[${i}].caption = this.value">
+        </div>`;
+      grid.appendChild(item);
+    });
+  },
+
+  // ── EXECUTIVE SUMMARY GENERATOR ──────────────────────────────────────
+  _generateExecSummary(filtered) {
+    const d  = this.meterData;
+    const e1 = filtered.E1;
+    const b1 = filtered.B1;
+    const q1 = filtered.Q1;
+    if (!e1) return '';
+
+    const clientName = document.getElementById('ciClient').value.trim();
+    const siteName   = document.getElementById('ciSite').value.trim();
+    const assessment = document.getElementById('ciAssessment').value.trim();
+    const notes      = document.getElementById('ciNotes').value.trim();
+
+    const e1daily     = Analytics.dailyTotals(e1);
+    const totalImport = e1daily.reduce((s,d)=>s+d.total,0);
+    const avgDaily    = totalImport / e1daily.length;
+    const avgKW       = avgDaily / 24;
+    const peakInfo    = Analytics.peakDemand(e1);
+    const pf          = Analytics.powerFactor(e1, q1);
+    const nightLoad   = Analytics._avgNightload(e1);
+    const daytime     = estimateDaytimeLoad(e1);
+    const numDays     = e1daily.length;
+
+    // Date range
+    const dateRange   = d.dateRange
+      ? `${Analytics.fmtDate(d.dateRange.start)} to ${Analytics.fmtDate(d.dateRange.end)}`
+      : 'the recorded period';
+
+    // Site identifier
+    const siteId = [clientName, siteName, `NMI ${d.nmi||'—'}`].filter(Boolean).join(' / ');
+
+    // Peak time
+    let peakTime = '';
+    if (peakInfo.peakDate && peakInfo.peakIdx >= 0) {
+      const h = Math.floor(peakInfo.peakIdx * e1.intervalLen / 60);
+      const m = (peakInfo.peakIdx * e1.intervalLen) % 60;
+      peakTime = ` at ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    }
+
+    // Build paragraph
+    let para = `This report presents an analysis of electricity consumption data for ${siteId}, ` +
+      `covering ${numDays} days of 30-minute interval data from ${dateRange}. `;
+
+    para += `Over the analysis period the site imported a total of ${(totalImport/1000).toFixed(2)} MWh from the electricity grid, ` +
+      `averaging ${avgDaily.toFixed(0)} kWh per day (equivalent to an average continuous demand of ${avgKW.toFixed(1)} kW). `;
+
+    para += `Peak import demand of ${peakInfo.peak.toFixed(1)} kW was recorded${peakTime}` +
+      `${peakInfo.peakDate ? ` on ${Analytics.fmtDate(peakInfo.peakDate)}` : ''}. `;
+
+    // Overnight base load context
+    if (nightLoad > 3) {
+      para += `The site maintains a significant overnight base load averaging ${nightLoad.toFixed(1)} kW (midnight to 6 am), ` +
+        `indicating continuous 24-hour operation or substantial plant that cannot be switched off. `;
+    }
+
+    // Solar / B1 context
+    const b1daily     = b1 ? Analytics.dailyTotals(b1) : [];
+    const totalExport = b1daily.reduce((s,d)=>s+d.total,0);
+    const avgExport   = b1daily.length ? totalExport / b1daily.length : 0;
+
+    const enhancedSolarSummary = avgExport < 2
+      ? `Metered solar export (B1 channel) is negligible at ${avgExport.toFixed(2)} kWh per day on average, which indicates there is little or no meaningful existing solar export. Given the site's average daytime load of ${daytime.toFixed(1)} kW during business hours, there is a clear opportunity to add solar. An indicative solar size of approximately ${roundToNearest5(daytime * 0.8)} kW should be assessed to maximise self-consumption and reduce grid import costs. `
+      : (() => {
+          const batRec = Analytics.batteryRecommendation(b1, e1);
+          const extraSolar = roundToNearest5(Math.max(daytime * 0.35, 5));
+          return `The site exports an average of ${avgExport.toFixed(1)} kWh per day to the grid via the B1 channel, which confirms an existing solar installation. There is a clear opportunity to add battery storage, with an indicative size of approximately ${batRec.rec80 ? batRec.rec80.cap : '>100'} kWh to capture most of this surplus energy for evening and overnight use. There may also be an opportunity to add more solar because the site still carries a substantial daytime load of ${daytime.toFixed(1)} kW; an additional ${extraSolar} kW should be assessed subject to roof area, inverter headroom and export limits. `;
+        })();
+    para += enhancedSolarSummary;
+
+    if (false && avgExport < 2) {
+      para += `Metered solar export (B1 channel) is negligible at ${avgExport.toFixed(2)} kWh per day on average, ` +
+        `indicating the site has no solar installed or a very small system that is entirely self-consumed. ` +
+        `With an average daytime load of ${daytime.toFixed(1)} kW during business hours (8 am–4 pm), ` +
+        `a solar installation of approximately ${Math.round(daytime * 0.8 / 5) * 5} kW is recommended to ` +
+        `maximise self-consumption and reduce grid import costs. `;
+    } else if (false) {
+      const batRec = Analytics.batteryRecommendation(b1, e1);
+      para += `The site exports an average of ${avgExport.toFixed(1)} kWh per day to the grid via the B1 channel, ` +
+        `indicating an existing solar installation. ` +
+        `A battery storage system of approximately ${batRec.rec80 ? batRec.rec80.cap : '>100'} kWh is recommended ` +
+        `to capture this surplus export for use during evening peak periods. `;
+    }
+
+    // Power factor
+    if (pf) {
+      if (pf >= 0.9) {
+        para += `The site's average power factor of ${pf.toFixed(3)} is within the acceptable range for Western Power's network. `;
+      } else {
+        para += `The site's average power factor of ${pf.toFixed(3)} falls below the Western Power threshold of 0.90 ` +
+          `and may be subject to reactive energy tariff charges. Power factor correction should be investigated. `;
+      }
+    }
+
+    para += `This analysis has been prepared by Sonic Charge to support solar and battery storage system sizing.`;
+
+    if (assessment) {
+      para += `
+
+Consultant Assessment: ${assessment}`;
+    }
+
+    if (notes) {
+      para += `
+
+Additional Notes: ${notes}`;
+    }
+
+    return para;
+  },
+
+  toggleClientPanel() {
+    const panel = document.getElementById('clientInfoPanel');
+    const btn   = document.getElementById('clientToggleBtn');
+    const open  = panel.classList.toggle('open');
+    btn.textContent = open ? '▲ Collapse' : '▼ Expand';
+  },
+
+  updateClientSummary() {
+    const name = document.getElementById('ciClient').value.trim();
+    const site = document.getElementById('ciSite').value.trim();
+    const sum  = document.getElementById('clientSummary');
+    if (name || site) {
+      sum.textContent = [name, site].filter(Boolean).join(' — ');
+      sum.style.color = 'var(--text)';
+    } else {
+      sum.textContent = 'Click to add client details for the PDF report';
+      sum.style.color = '';
+    }
+  },
+
+  _populatePrintContent() {
+    const d = this.meterData;
+    if (!d) return;
+
+    // Meter / file details
+    const now = new Date().toLocaleDateString('en-AU',
+      { day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    document.getElementById('printGeneratedDate').textContent = `Generated: ${now}`;
+
+    const clientName = document.getElementById('ciClient').value.trim();
+    const siteName   = document.getElementById('ciSite').value.trim();
+    const titleParts = [clientName || null, siteName || null, `NMI ${d.nmi || '—'}`].filter(Boolean);
+    document.getElementById('printSiteTitle').textContent = titleParts.join(' — ');
+
+    document.getElementById('ptNMI').textContent      = d.nmi || '—';
+    document.getElementById('ptMeter').textContent    = d.meterSerial || '—';
+    document.getElementById('ptDNSP').textContent     = d.fromParticipant || '—';
+    document.getElementById('ptFormat').textContent   = d.format || '—';
+    document.getElementById('ptChannels').textContent = Object.keys(d.channels).join(', ');
+    if (d.dateRange) {
+      document.getElementById('ptRange').textContent =
+        `${Analytics.fmtDate(d.dateRange.start)} – ${Analytics.fmtDate(d.dateRange.end)}`;
+    }
+
+    // ── Dedicated client info block ──────────────────────────────
+    const contact    = document.getElementById('ciContact').value.trim();
+    const phone      = document.getElementById('ciPhone').value.trim();
+    const email      = document.getElementById('ciEmail').value.trim();
+    const preparedBy = document.getElementById('ciPreparedBy').value.trim();
+    const notes      = document.getElementById('ciNotes').value.trim();
+
+    const hasAnyClient = clientName || siteName || contact || phone || email || preparedBy;
+    document.getElementById('ptClientBlock').style.display = hasAnyClient ? 'block' : 'none';
+    document.getElementById('ptClientName').textContent    = clientName || '—';
+    document.getElementById('ptClientSite').textContent    = siteName   || '—';
+    document.getElementById('ptClientContact').textContent = contact    || '—';
+    document.getElementById('ptClientPhone').textContent   = phone      || '—';
+    document.getElementById('ptClientEmail').textContent   = email      || '—';
+    document.getElementById('ptPreparedBy').textContent    = preparedBy || '—';
+    document.getElementById('ptNotesRow').style.display    = notes      ? ''     : 'none';
+    document.getElementById('ptNotes').textContent         = notes;
+
+    // ── Site visit images ─────────────────────────────────────────
+    const printImgSection = document.getElementById('printImagesSection');
+    const printImgGrid    = document.getElementById('printImageGrid');
+    printImgGrid.innerHTML = '';
+    if (this._images.length > 0) {
+      this._images.forEach(img => {
+        const item = document.createElement('div');
+        item.className = 'print-img-item';
+        item.innerHTML = `<img src="${img.dataURL}" alt="Site photo">` +
+          (img.caption ? `<div class="print-img-caption">${img.caption}</div>` : '');
+        printImgGrid.appendChild(item);
+      });
+      printImgSection.style.display = 'block';
+    } else {
+      printImgSection.style.display = 'none';
+    }
+
+    // ── Executive summary ─────────────────────────────────────────
+    const filtered = this.getFiltered();
+    const summary  = this._generateExecSummary(filtered);
+    const execEl   = document.getElementById('execSummarySection');
+    const textEl   = document.getElementById('execSummaryText');
+    // Render newlines as paragraph breaks
+    textEl.innerHTML = summary.split('\n\n').map(p => `<p style="margin:0 0 8px 0">${p}</p>`).join('');
+    execEl.style.display = summary ? 'block' : 'none';
+    document.getElementById('printHeader').style.display = 'block';
+  },
+
+  async _capturePrintCharts() {
+    if (!this.meterData) return;
+
+    // ── Capture charts as print-ready images ─────────────────────────────
+    // Resize each chart to exact A4 print dimensions, then wait two animation
+    // frames so Chart.js finishes its internal RAF redraw before capturing.
+    // This avoids both the blank-canvas race and the squish from mismatched
+    // screen vs. print dimensions.
+    //
+    // A4 usable at 96 dpi: 688px wide (210mm – 2×16mm margins)
+    // Full-width canvas  : 688px – 2×10px box-padding = 668 × 300 px
+    // 2-col canvas       : (688–8)/2 – 2×10px box-padding = 320 × 265 px
+    const FULL_W = 668, FULL_H = 300;
+    const COL2_W = 320, COL2_H = 265;
+
+    const _applyPrintColours = c => {
+      if (!c?.options) return;
+      if (c.options.plugins?.legend?.labels) {
+        c.options.plugins.legend.labels.color = '#1a2a3a';
+        c.options.plugins.legend.labels.font  = { size: 9 };
+      }
+      ['x', 'y'].forEach(ax => {
+        const s = c.options.scales?.[ax];
+        if (!s) return;
+        if (s.ticks) { s.ticks.color = '#5a7a9a'; s.ticks.font = { size: 8 }; }
+        if (s.title) { s.title.color = '#5a7a9a'; s.title.font = { size: 8 }; }
+        if (s.grid)  { s.grid.color  = 'rgba(0,0,0,0.07)'; }
+      });
+    };
+
+    const waitMs = ms => new Promise(r => setTimeout(r, ms));
+
+    for (const [, chart] of Object.entries(Charts)) {
+      if (!chart) continue;
+      const canvas  = chart.canvas;
+      const inGrid2 = !!canvas.closest('.chart-grid.cols-2');
+      const w = inGrid2 ? COL2_W : FULL_W;
+      const h = inGrid2 ? COL2_H : FULL_H;
+
+      // Disable animation BEFORE resize so Chart.js renders synchronously
+      const savedAnimation = chart.options.animation;
+      chart.options.animation = false;
+
+      _applyPrintColours(chart);
+      chart.resize(w, h);
+      // update('none') skips animation and redraws immediately;
+      // combined with animation:false this forces a fully synchronous render
+      chart.update('none');
+      chart.render();
+
+      // Small setTimeout gives the browser one event-loop tick to flush
+      // any remaining paint work before we capture the canvas pixels
+      await waitMs(50);
+
+      // Inject or update the overlay <img> inside the canvas-wrap
+      const wrap = canvas.closest('.chart-canvas-wrap');
+      if (!wrap) {
+        chart.options.animation = savedAnimation;
+        continue;
+      }
+      let img = wrap.querySelector('.print-chart-img');
+      if (!img) {
+        img = document.createElement('img');
+        img.className = 'print-chart-img';
+        wrap.appendChild(img);
+      }
+      img.src = chart.toBase64Image('image/png', 1.0);
+
+      // Restore saved animation setting
+      chart.options.animation = savedAnimation;
+    }
+    // ── End chart capture ─────────────────────────────────────────────────
+
+  },
+
+  async printReport() {
+    if (!this.meterData) return;
+    this._populatePrintContent();
+    await this._capturePrintCharts();
+    this._usePrintImages = true;
+    document.body.classList.add('print-prepared');
+    window.print();
+  },
+
+  renderDashboard() {
+    const d = this.meterData;
+    if (!d) return;
+
+    // Show dashboard
+    document.getElementById('uploadZone').style.display = 'none';
+    document.getElementById('dashboard').style.display  = 'block';
+
+    // Show export button
+    document.getElementById('exportPdfBtn').style.display = 'inline-block';
+
+    // Header meta
+    const meta = document.getElementById('headerMeta');
+    meta.style.display = 'flex';
+    meta.innerHTML = `
+      <span class="chip">Format: <span>${d.format}</span></span>
+      <span class="chip">NMI: <span>${d.nmi||'—'}</span></span>
+      <span class="chip">Meter: <span>${d.meterSerial||'—'}</span></span>
+      ${d.dateRange ? `<span class="chip">Data: <span>${Analytics.fmtDate(d.dateRange.start)} – ${Analytics.fmtDate(d.dateRange.end)}</span></span>` : ''}
+      <span class="chip">Channels: <span>${Object.keys(d.channels).join(', ')}</span></span>
+    `;
+
+    // Set date range controls
+    if (d.dateRange) {
+      const toInput  = v => `${v.slice(0,4)}-${v.slice(4,6)}-${v.slice(6,8)}`;
+      document.getElementById('ctrlDateFrom').value = toInput(d.dateRange.start);
+      document.getElementById('ctrlDateTo').value   = toInput(d.dateRange.end);
+    }
+
+    this.renderAll();
+  },
+
+  renderAll() {
+    const filtered = this.getFiltered();
+    const e1 = filtered.E1;
+    const b1 = filtered.B1;
+    const q1 = filtered.Q1;
+    const k1 = filtered.K1;
+    if (!e1) return;
+
+    const e1daily  = Analytics.dailyTotals(e1);
+    const b1daily  = b1 ? Analytics.dailyTotals(b1) : null;
+    const labels   = Analytics.intervalLabels(e1.intervalLen);
+
+    // ─ Summary cards
+    const totalImport = e1daily.reduce((s,d)=>s+d.total,0);
+    const totalExport = b1daily ? b1daily.reduce((s,d)=>s+d.total,0) : null;
+    const peakInfo    = Analytics.peakDemand(e1);
+    const qualStats   = Analytics.qualityStats(e1);
+    const pf          = Analytics.powerFactor(e1, q1);
+
+    const cards = document.getElementById('summaryCards');
+    cards.innerHTML = `
+      <div class="card import">
+        <div class="card-label">Total Import (E1)</div>
+        <div class="card-value">${(totalImport/1000).toFixed(2)}<span class="card-unit"> MWh</span></div>
+        <div class="card-sub">${e1daily.length} days of data</div>
+      </div>
+      ${totalExport !== null ? `
+      <div class="card export">
+        <div class="card-label">Total Export (B1)</div>
+        <div class="card-value">${(totalExport/1000).toFixed(2)}<span class="card-unit"> MWh</span></div>
+        <div class="card-sub">Solar export</div>
+      </div>` : `
+      <div class="card" style="opacity:0.4">
+        <div class="card-label">Export (B1)</div>
+        <div class="card-value" style="font-size:14px">No data</div>
+        <div class="card-sub">No solar export channel</div>
+      </div>`}
+      <div class="card peak">
+        <div class="card-label">Peak Import Demand</div>
+        <div class="card-value">${peakInfo.peak.toFixed(1)}<span class="card-unit"> kW</span></div>
+        <div class="card-sub">${peakInfo.peakDate ? Analytics.fmtDate(peakInfo.peakDate) : ''}</div>
+      </div>
+      <div class="card ${(totalImport/e1daily.length).toFixed(0)>0 ? 'import' : 'good'}">
+        <div class="card-label">Avg Daily Import</div>
+        <div class="card-value">${(totalImport/e1daily.length).toFixed(0)}<span class="card-unit"> kWh</span></div>
+        <div class="card-sub">${(totalImport/e1daily.length/24).toFixed(1)} kW avg demand</div>
+      </div>
+      ${pf ? `
+      <div class="card ${pf>=0.9?'good':'alert'}">
+        <div class="card-label">Avg Power Factor</div>
+        <div class="card-value">${pf.toFixed(3)}</div>
+        <div class="card-sub">${pf>=0.9?'✓ Acceptable':'⚠ Below 0.9 threshold'}</div>
+      </div>` : ''}
+      <div class="card ${qualStats.pctActual>95?'good':'peak'}">
+        <div class="card-label">Data Quality</div>
+        <div class="card-value">${qualStats.pctActual.toFixed(1)}<span class="card-unit">%</span></div>
+        <div class="card-sub">Actual reads (A flag)</div>
+      </div>
+    `;
+
+    // ─ Charts
+    renderTimeline(e1daily, b1daily, this._timelineType);
+    renderProfile(
+      Analytics.avgDayProfile(e1, this._profileFilter),
+      b1 ? Analytics.avgDayProfile(b1, this._profileFilter) : null,
+      labels, this._profileFilter
+    );
+    renderMonthly(Analytics.monthlyTotals(e1), b1 ? Analytics.monthlyTotals(b1) : null);
+    renderLDC(Analytics.loadDurationCurve(e1));
+    renderReactive(
+      q1 ? Analytics.avgDayProfile(q1, this._profileFilter) : null,
+      k1 ? Analytics.avgDayProfile(k1, this._profileFilter) : null,
+      labels
+    );
+
+    // ─ Heatmap
+    this.renderHeatmap(filtered);
+
+    // ─ Recommendations
+    renderRecommendations(this.meterData, filtered);
+
+    // ─ Connection analysis (if value set)
+    const inspectDates = this._getInspectableDates(filtered);
+    if (!inspectDates.length) {
+      this._inspectionDate = null;
+    } else if (!this._inspectionDate || !inspectDates.includes(this._inspectionDate)) {
+      this._inspectionDate = inspectDates[0];
+    }
+    document.getElementById('ctrlInspectDate').value = this._toInputDate(this._inspectionDate);
+    this.renderDayInspection(filtered);
+
+    const connVal = parseFloat(document.getElementById('ctrlConnection').value);
+    if (connVal > 0) this.updateConnectionAnalysis();
+  },
+
+  shiftInspectionDate(delta) {
+    const dates = this._getInspectableDates();
+    if (!dates.length) return;
+    const currentIndex = this._inspectionDate && dates.includes(this._inspectionDate)
+      ? dates.indexOf(this._inspectionDate)
+      : 0;
+    const nextIndex = Math.min(dates.length - 1, Math.max(0, currentIndex + delta));
+    this._inspectionDate = dates[nextIndex];
+    document.getElementById('ctrlInspectDate').value = this._toInputDate(this._inspectionDate);
+    this.renderDayInspection(this.getFiltered());
+  },
+
+  renderDayInspection(filtered) {
+    const head = document.getElementById('dayReviewHead');
+    const body = document.getElementById('dayReviewBody');
+    const meta = document.getElementById('dayReviewMeta');
+    const reviewDate = this._inspectionDate;
+    const channels = Object.entries(filtered)
+      .filter(([, ch]) => ch?.data?.[reviewDate])
+      .sort(([a], [b]) => a.localeCompare(b));
+
+    if (!reviewDate || !channels.length) {
+      destroyChart('dayProfile');
+      head.innerHTML = '<tr><th>Interval</th><th>Time</th><th>Data</th></tr>';
+      body.innerHTML = '<tr><td colspan="3" class="muted-cell">No interval data available for the selected day.</td></tr>';
+      meta.textContent = '';
+      return;
+    }
+
+    const intervalLen = channels[0][1].intervalLen;
+    const intervalCount = Math.round(1440 / intervalLen);
+    const labels = Analytics.intervalLabels(intervalLen);
+    const qualitySummary = channels
+      .map(([suffix, ch]) => `${suffix}: ${ch.data[reviewDate].qualityFlag || 'A'}`)
+      .join('  |  ');
+    meta.textContent = `${Analytics.fmtDate(reviewDate)}  |  ${intervalCount} intervals  |  Quality flags: ${qualitySummary}`;
+
+    const series = {};
+    ['E1', 'B1', 'Q1', 'K1'].forEach(suffix => {
+      const ch = filtered[suffix];
+      const day = ch?.data?.[reviewDate];
+      if (!day) return;
+      const mult = 60 / ch.intervalLen;
+      series[suffix] = day.values.map(v => +(v * mult).toFixed(3));
+    });
+    renderSelectedDayProfile(labels, series);
+
+    head.innerHTML = `
+      <tr>
+        <th>Interval</th>
+        <th>Time</th>
+        ${channels.map(([suffix, ch]) => `<th>${suffix} (${ch.unit})</th>`).join('')}
+      </tr>`;
+
+    const rows = [];
+    for (let i = 0; i < intervalCount; i++) {
+      const mins = i * intervalLen;
+      const h = String(Math.floor(mins / 60)).padStart(2, '0');
+      const m = String(mins % 60).padStart(2, '0');
+      rows.push(`
+        <tr>
+          <td>${i + 1}</td>
+          <td>${h}:${m}</td>
+          ${channels.map(([, ch]) => {
+            const val = ch.data[reviewDate].values[i];
+            return `<td>${Number.isFinite(val) ? val.toFixed(3) : '<span class="muted-cell">-</span>'}</td>`;
+          }).join('')}
+        </tr>`);
+    }
+    body.innerHTML = rows.join('');
+  },
+
+  renderHeatmap(filtered) {
+    const ch = this._hmChannel === 'peak'
+      ? filtered.E1
+      : (filtered[this._hmChannel] || filtered.E1);
+
+    if (!ch) return;
+
+    const dailyMap = {};
+    const mult = 60 / ch.intervalLen;
+    for (const [d, day] of Object.entries(ch.data)) {
+      if (this._hmChannel === 'peak') {
+        dailyMap[d] = Math.max(...day.values.map(v => v * mult));
+      } else {
+        dailyMap[d] = day.values.reduce((s,v)=>s+v, 0);
+      }
+    }
+
+    const label = this._hmChannel === 'peak' ? 'kW peak' :
+                  (ch.unit === 'KVARH' ? 'kVARh' : ch.unit === 'KVAH' ? 'kVAh' : 'kWh');
+    renderHeatmap(dailyMap, label);
+  },
+
+  setProfileFilter(f) {
+    this._profileFilter = f;
+    ['profileAll','profileWD','profileWE'].forEach(id => document.getElementById(id).classList.remove('active'));
+    document.getElementById(f==='all'?'profileAll':f==='weekday'?'profileWD':'profileWE').classList.add('active');
+    const filtered = this.getFiltered();
+    const e1 = filtered.E1, b1 = filtered.B1, q1 = filtered.Q1, k1 = filtered.K1;
+    if (!e1) return;
+    const labels = Analytics.intervalLabels(e1.intervalLen);
+    renderProfile(Analytics.avgDayProfile(e1,f), b1?Analytics.avgDayProfile(b1,f):null, labels, f);
+    if (q1||k1) renderReactive(q1?Analytics.avgDayProfile(q1,f):null, k1?Analytics.avgDayProfile(k1,f):null, labels);
+  },
+
+  setTimelineType(t) {
+    this._timelineType = t;
+    ['timelineBar','timelineLine'].forEach(id => document.getElementById(id).classList.remove('active'));
+    document.getElementById(t==='bar'?'timelineBar':'timelineLine').classList.add('active');
+    const f = this.getFiltered();
+    if (!f.E1) return;
+    renderTimeline(Analytics.dailyTotals(f.E1), f.B1?Analytics.dailyTotals(f.B1):null, t);
+  },
+
+  setHeatmapChannel(ch) {
+    this._hmChannel = ch;
+    ['hmImport','hmExport','hmPeak'].forEach(id => document.getElementById(id).classList.remove('active'));
+    document.getElementById(ch==='E1'?'hmImport':ch==='B1'?'hmExport':'hmPeak').classList.add('active');
+    this.renderHeatmap(this.getFiltered());
+  },
+
+  applyDateFilter() {
+    const from = document.getElementById('ctrlDateFrom').value.replace(/-/g,'');
+    const to   = document.getElementById('ctrlDateTo').value.replace(/-/g,'');
+    this._dateFrom = from || null;
+    this._dateTo   = to   || null;
+    this.renderAll();
+  },
+
+  resetDateFilter() {
+    const d = this.meterData;
+    if (!d || !d.dateRange) return;
+    this._dateFrom = null; this._dateTo = null;
+    const toInput = v => `${v.slice(0,4)}-${v.slice(4,6)}-${v.slice(6,8)}`;
+    document.getElementById('ctrlDateFrom').value = toInput(d.dateRange.start);
+    document.getElementById('ctrlDateTo').value   = toInput(d.dateRange.end);
+    this.renderAll();
+  },
+
+  // Convert kVA → amps using current phase/voltage settings
+  _connAmps(kva) {
+    const phase   = document.getElementById('ctrlPhase').value;
+    const voltage = parseFloat(document.getElementById('ctrlVoltage').value) || (phase === '1ph' ? 230 : 400);
+    return phase === '1ph'
+      ? (kva * 1000) / voltage
+      : (kva * 1000) / (Math.sqrt(3) * voltage);
+  },
+
+  // Convert amps → kVA using current phase/voltage settings
+  _connKva(amps) {
+    const phase   = document.getElementById('ctrlPhase').value;
+    const voltage = parseFloat(document.getElementById('ctrlVoltage').value) || (phase === '1ph' ? 230 : 400);
+    return phase === '1ph'
+      ? (amps * voltage) / 1000
+      : (amps * Math.sqrt(3) * voltage) / 1000;
+  },
+
+  // Called when kVA field changes — mirror into amps field
+  syncAmpsFromKva() {
+    const kva = parseFloat(document.getElementById('ctrlConnection').value);
+    const ampsEl = document.getElementById('ctrlAmps');
+    if (!isNaN(kva) && kva > 0) {
+      ampsEl.value = this._connAmps(kva).toFixed(1);
+    } else {
+      ampsEl.value = '';
+    }
+  },
+
+  // Called when amps field changes — mirror into kVA field
+  syncKvaFromAmps() {
+    const amps = parseFloat(document.getElementById('ctrlAmps').value);
+    const kvaEl = document.getElementById('ctrlConnection');
+    if (!isNaN(amps) && amps > 0) {
+      kvaEl.value = this._connKva(amps).toFixed(1);
+    } else {
+      kvaEl.value = '';
+    }
+  },
+
+  onPhaseChange() {
+    const phase = document.getElementById('ctrlPhase').value;
+    document.getElementById('ctrlVoltage').value = phase === '1ph' ? '230' : '400';
+    // Re-sync whichever field has a value
+    const kva  = parseFloat(document.getElementById('ctrlConnection').value);
+    const amps = parseFloat(document.getElementById('ctrlAmps').value);
+    if (!isNaN(kva) && kva > 0)   this.syncAmpsFromKva();
+    else if (!isNaN(amps) && amps > 0) this.syncKvaFromAmps();
+  },
+
+  // Calculate amps from kVA, phase type and voltage
+  kvaToAmps(kva, phase, voltage) {
+    if (phase === '1ph') {
+      return (kva * 1000) / voltage; // I = kVA×1000 / V
+    } else {
+      return (kva * 1000) / (Math.sqrt(3) * voltage); // I = kVA×1000 / (√3 × VL)
+    }
+  },
+
+  // Return next standard Australian circuit breaker size ≥ amps
+  nextCBsize(amps) {
+    const sizes = [6,10,16,20,25,32,40,50,63,80,100,125,160,200,250,315,400,500,630,800,1000];
+    return sizes.find(s => s >= amps) || sizes[sizes.length - 1];
+  },
+
+  updateConnectionAnalysis() {
+    const connKVA = parseFloat(document.getElementById('ctrlConnection').value);
+    if (!connKVA || connKVA <= 0) return;
+
+    const phase   = document.getElementById('ctrlPhase').value;
+    const voltage = parseFloat(document.getElementById('ctrlVoltage').value) || (phase === '1ph' ? 230 : 400);
+    const phaseLabel = phase === '1ph' ? `1Ø ${voltage}V` : `3Ø ${voltage}V L-L`;
+
+    const filtered = this.getFiltered();
+    const e1 = filtered.E1;
+    if (!e1) return;
+
+    const util = Analytics.connectionUtilisation(e1, connKVA);
+    const pf   = Analytics.powerFactor(e1, filtered.Q1) || 0.95; // default assume 0.95 if no reactive data
+
+    // Current calculations
+    const connAmps    = this.kvaToAmps(connKVA, phase, voltage);
+    const peakAmps    = this.kvaToAmps(util.peak, phase, voltage);     // peak kW as kVA approximation (assume PF≈1 for worst case fuse sizing)
+    const avgKW       = Object.values(e1.data).flatMap(d=>d.values).reduce((s,v)=>s+v,0) /
+                        Object.keys(e1.data).length / 24 * (60/e1.intervalLen);
+    const avgAmps     = this.kvaToAmps(avgKW / pf, phase, voltage);    // use actual PF for average
+    const suggestedCB = this.nextCBsize(peakAmps);
+    const existingCB  = this.nextCBsize(connAmps);
+
+    const section = document.getElementById('connectionSection');
+    section.style.display = 'block';
+
+    document.getElementById('connSubtitle').textContent =
+      `${phaseLabel} — ${connKVA} kVA / ${connAmps.toFixed(0)} A — Peak: ${util.peak.toFixed(1)} kW / ${peakAmps.toFixed(0)} A`;
+
+    const pct   = Math.min(util.utilPct, 150);
+    const color = util.utilPct > 100 ? 'var(--bad)' : util.utilPct > 80 ? 'var(--warn)' : 'var(--good)';
+
+    document.getElementById('connGauge').innerHTML = `
+      <div class="gauge-wrap">
+        <div class="gauge-bar-wrap">
+          <div class="gauge-bar-bg">
+            <div class="gauge-bar-fill" style="width:${Math.min(pct,100)}%;background:${color}"></div>
+          </div>
+          <div class="gauge-labels">
+            <span>0</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+          </div>
+        </div>
+        <div class="gauge-pct" style="color:${color}">${util.utilPct.toFixed(0)}%</div>
+      </div>`;
+
+    document.getElementById('connDetails').innerHTML = `
+      <div class="rec-card">
+        <h3>⚡ Connection — kVA &amp; Amps</h3>
+        <div class="rec-item"><span class="rec-item-label">Supply type</span><span class="rec-item-value">${phaseLabel}</span></div>
+        <div class="rec-item"><span class="rec-item-label">Connection size</span><span class="rec-item-value">${connKVA} kVA &nbsp;/&nbsp; ${connAmps.toFixed(0)} A</span></div>
+        <div class="rec-item"><span class="rec-item-label">Current CB / fuse rating</span><span class="rec-item-value">${existingCB} A</span></div>
+        <div class="rec-item" style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px"><span class="rec-item-label">Peak import demand</span><span class="rec-item-value warn-text">${util.peak.toFixed(1)} kW &nbsp;/&nbsp; ${peakAmps.toFixed(0)} A</span></div>
+        <div class="rec-item"><span class="rec-item-label">Avg demand</span><span class="rec-item-value">${avgKW.toFixed(1)} kW &nbsp;/&nbsp; ${avgAmps.toFixed(0)} A</span></div>
+        <div class="rec-item"><span class="rec-item-label">Min. CB for peak load</span><span class="rec-item-value ${suggestedCB > existingCB ? 'bad-text' : 'highlight'}">${suggestedCB} A ${suggestedCB > existingCB ? '⚠ Undersized!' : '✓'}</span></div>
+      </div>
+      <div class="rec-card">
+        <h3>📊 Utilisation Details</h3>
+        <div class="rec-item"><span class="rec-item-label">Peak utilisation</span><span class="rec-item-value" style="color:${color}">${util.utilPct.toFixed(1)}%</span></div>
+        <div class="rec-item"><span class="rec-item-label">Exceedance hours</span><span class="rec-item-value ${util.exceedHours>0?'bad-text':'highlight'}">${util.exceedHours.toFixed(1)} hrs</span></div>
+        <div class="rec-item"><span class="rec-item-label">% time above limit</span><span class="rec-item-value ${util.exceedPct>0?'bad-text':'highlight'}">${util.exceedPct.toFixed(2)}%</span></div>
+        <div class="rec-item"><span class="rec-item-label">Spare capacity (peak)</span><span class="rec-item-value ${util.utilPct<80?'highlight':'warn-text'}">${Math.max(0, connKVA - util.peak).toFixed(1)} kVA / ${Math.max(0, connAmps - peakAmps).toFixed(0)} A</span></div>
+        <div class="rec-item"><span class="rec-item-label">Avg power factor</span><span class="rec-item-value">${pf.toFixed(3)}</span></div>
+      </div>`;
+
+    // Re-render LDC with connection line (in amps as secondary note)
+    renderLDC(Analytics.loadDurationCurve(e1), connKVA, 'chartLDCconn');
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  EVENT HANDLERS
+// ═══════════════════════════════════════════════════════════════
+function handleFile(file) {
+  if (!file) return;
+  if (file.name.match(/\.xlsx?$/i)) {
+    App.loadXls(file);
+    return;
+  }
+  if (!file.name.match(/\.(csv|txt)$/i)) {
+    document.getElementById('errorMsg').textContent = 'Please select a .csv, .txt, .xls, or .xlsx file.';
+    return;
+  }
+  App.load(file);
+}
+
+// File input (upload zone)
+document.getElementById('fileInput').addEventListener('change', e => {
+  handleFile(e.target.files[0]);
+});
+// Drag and drop
+const dropArea = document.getElementById('dropArea');
+['dragenter','dragover'].forEach(ev => dropArea.addEventListener(ev, e => {
+  e.preventDefault(); dropArea.classList.add('drag-over');
+}));
+['dragleave','drop'].forEach(ev => dropArea.addEventListener(ev, e => {
+  e.preventDefault(); dropArea.classList.remove('drag-over');
+}));
+dropArea.addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
+
+// Clicking drop area opens file picker
+dropArea.addEventListener('click', () => document.getElementById('fileInput').click());
+
+// Connection inputs — enter key triggers analysis on any of the three fields
+['ctrlConnection', 'ctrlAmps', 'ctrlVoltage'].forEach(id => {
+  document.getElementById(id).addEventListener('keyup', e => {
+    if (e.key === 'Enter') App.updateConnectionAnalysis();
+  });
+});
+
+document.getElementById('ctrlInspectDate').addEventListener('change', e => {
+  App._inspectionDate = App._fromInputDate(e.target.value);
+  App.renderDayInspection(App.getFiltered());
+});
+
+window.addEventListener('beforeprint', () => {
+  if (!App.meterData) return;
+  App._populatePrintContent();
+  document.body.classList.toggle('print-prepared', App._usePrintImages);
+});
+
+// ─── PRINT RESTORE ───────────────────────────────────────────────────────
+// Charts are captured as PNG images inside printReport() before window.print()
+// is called. After printing, restore chart colours/sizes to screen values
+// and re-hide the print header.
+window.addEventListener('afterprint', () => {
+  App._usePrintImages = false;
+  document.body.classList.remove('print-prepared');
+  // Restore chart colours and fonts to screen values, resize to container
+  Object.values(Charts).forEach(c => {
+    if (!c?.options) return;
+    if (c.options.plugins?.legend?.labels) {
+      c.options.plugins.legend.labels.color = '#7a9cc4';
+      c.options.plugins.legend.labels.font  = { size: 11 };
+    }
+    ['x', 'y'].forEach(ax => {
+      const s = c.options.scales?.[ax];
+      if (!s) return;
+      if (s.ticks) { s.ticks.color = '#7a9cc4'; s.ticks.font = { size: 10 }; }
+      if (s.title) { s.title.color = '#7a9cc4'; s.title.font = { size: 10 }; }
+      if (s.grid)  { s.grid.color  = 'rgba(255,255,255,0.04)'; }
+    });
+    c.resize(); // back to screen size
+    c.update('none');
+  });
+  // Remove captured print images so they don't linger on screen
+  document.querySelectorAll('.print-chart-img').forEach(el => el.remove());
+  // Hide print header
+  document.getElementById('printHeader').style.display = '';
+});
+</script>
+<script type="module" src="legacy-loader.mjs"></script></body>
+</html>
