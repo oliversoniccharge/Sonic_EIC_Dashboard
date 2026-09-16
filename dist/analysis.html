@@ -2175,12 +2175,13 @@ Additional Notes: ${notes}`;
     // Header meta
     const meta = document.getElementById('headerMeta');
     meta.style.display = 'flex';
+    const safe = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     meta.innerHTML = `
-      <span class="chip">Format: <span>${d.format}</span></span>
-      <span class="chip">NMI: <span>${d.nmi||'—'}</span></span>
-      <span class="chip">Meter: <span>${d.meterSerial||'—'}</span></span>
+      <span class="chip">Format: <span>${safe(d.format)}</span></span>
+      <span class="chip">NMI: <span>${safe(d.nmi||'—')}</span></span>
+      <span class="chip">Meter: <span>${safe(d.meterSerial||'—')}</span></span>
       ${d.dateRange ? `<span class="chip">Data: <span>${Analytics.fmtDate(d.dateRange.start)} – ${Analytics.fmtDate(d.dateRange.end)}</span></span>` : ''}
-      <span class="chip">Channels: <span>${Object.keys(d.channels).join(', ')}</span></span>
+      <span class="chip">Channels: <span>${safe(Object.keys(d.channels).join(', '))}</span></span>
     `;
 
     // Set date range controls

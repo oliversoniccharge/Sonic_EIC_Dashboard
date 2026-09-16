@@ -34,7 +34,7 @@ Read current Sites building/hosting skills. Reuse `.openai/hosting.json` and its
 - Before staging, inspect changes and confirm `.private/`, `dist/data/`, archives, tokens and email metadata remain ignored. Stage only intended code/assets/documentation and the version marker. Never use force-add for private files.
 - Commit the validated source and push to the existing GitHub origin. Use a Sites short-lived source credential, passed as a per-command HTTP header, to push the exact same commit to the returned Sites source branch. Never persist the token.
 - After a successful push, obtain the full SHA with `git rev-parse --verify HEAD`.
-- Package the static output using the current Sites helper. On this Windows machine Git Bash is at `C:/Program Files/Git/bin/bash.exe`; ensure its directory is on the child process PATH if the helper cannot find bash. The archive must include `dist/data/` but exclude raw emails, state and credentials.
+- Package the static output using the current Sites helper. On this Windows machine use `python scripts/package_windows.py CURRENT_SITES_PLUGIN_ROOT .private/site.tar.gz`: the adapter invokes the official helper, locates Git Bash and uses a POSIX archive path so GNU tar does not interpret the drive letter as a remote host. The archive must include `dist/data/` but exclude raw emails, state and credentials.
 - Save and deploy privately using the native Sites tools with the exact pushed SHA and archive path. Reuse a saved version if deployment needs retrying. Wait for terminal success; record the deployment result in ignored `.private/deployment.json`. Do not claim a refresh if deployment fails.
 - Update the existing Site view only when useful; do not open duplicate tabs on every daily run.
 
