@@ -9,6 +9,7 @@ A private, multi-site Western Power meter dashboard, with Sonic Charge's officia
 - Original register codes, quality flags, date filters and CSV export.
 - NEM13 accumulated read periods displayed separately, never invented as interval demand.
 - Detailed analysis and local file upload tools retained from the original analyser.
+- Mean and median import demand (kW) and daily import energy (kWh/day) in detailed analysis.
 - Read-only daily email collection, deduplication and revision-aware merging.
 
 ## Privacy
@@ -24,7 +25,7 @@ Requires Python 3.11+ and Node.js 20+. Install Python requirements, then:
 ```text
 python scripts/build_data.py
 python scripts/test_data.py
-node --test scripts/test_meter.mjs
+node --test scripts/test_meter.mjs scripts/test_analysis_statistics.mjs
 node scripts/preview.mjs
 ```
 
@@ -41,3 +42,5 @@ NEM12 E-family KWH registers are import and B-family KWH registers are export. R
 NEM13 records remain complete read periods; overlapping periods are not prorated or summed into daily charts. Site names/addresses use the latest standing-data notification. Optional private name overrides can be stored in `.private/site-names.json`, keyed by NMI.
 
 The original detailed analyser aggregates register families for compatibility and only opens hosted data with a single interval length and no missing values. Its system-sizing suggestions are indicative, not engineering design approval.
+
+Detailed-analysis mean and median statistics use the selected date range. Demand is calculated from finite interval readings using the channel's interval duration, including real zeros. Daily energy statistics include only complete days; the cards disclose excluded incomplete days. Empty selections display a dash, not zero.

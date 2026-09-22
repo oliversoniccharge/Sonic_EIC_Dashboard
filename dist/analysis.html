@@ -6,6 +6,7 @@
   <title>Sonic Charge · Detailed meter analysis</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="analysis-statistics.js"></script>
   <style>
     :root {
       --brand: #03c0c1;
@@ -121,6 +122,8 @@
     .card.peak .card-value { color: var(--warn); }
     .card.good .card-value { color: var(--good); }
     .card.alert .card-value { color: var(--bad); }
+    .card.statistic .card-label { font-size: 14px; text-transform: none; letter-spacing: 0; }
+    .card.statistic .card-sub { font-size: 12px; line-height: 1.4; }
 
     /* ─── CHART CONTAINERS ────────────────────────────────────── */
     .chart-grid { display: grid; gap: 16px; }
@@ -2212,6 +2215,15 @@ Additional Notes: ${notes}`;
     const peakInfo    = Analytics.peakDemand(e1);
     const qualStats   = Analytics.qualityStats(e1);
     const pf          = Analytics.powerFactor(e1, q1);
+    const importStats = MeterStatistics.summarise(e1);
+    const statValue = value => Number.isFinite(value) ? value.toLocaleString('en-AU', {
+      minimumFractionDigits: 1, maximumFractionDigits: 1
+    }) : '—';
+    const demandBasis = importStats.observedIntervals
+      ? `${importStats.observedIntervals.toLocaleString('en-AU')} observed ${e1.intervalLen}-min intervals`
+      : 'No observed intervals in selected dates';
+    const energyBasis = `${importStats.completeDays} complete days` +
+      (importStats.incompleteDays ? `; ${importStats.incompleteDays} incomplete days excluded` : '');
 
     const cards = document.getElementById('summaryCards');
     cards.innerHTML = `
@@ -2236,10 +2248,25 @@ Additional Notes: ${notes}`;
         <div class="card-value">${peakInfo.peak.toFixed(1)}<span class="card-unit"> kW</span></div>
         <div class="card-sub">${peakInfo.peakDate ? Analytics.fmtDate(peakInfo.peakDate) : ''}</div>
       </div>
-      <div class="card ${(totalImport/e1daily.length).toFixed(0)>0 ? 'import' : 'good'}">
-        <div class="card-label">Avg Daily Import</div>
-        <div class="card-value">${(totalImport/e1daily.length).toFixed(0)}<span class="card-unit"> kWh</span></div>
-        <div class="card-sub">${(totalImport/e1daily.length/24).toFixed(1)} kW avg demand</div>
+      <div class="card import statistic">
+        <div class="card-label">Mean Import Demand</div>
+        <div class="card-value">${statValue(importStats.demand.mean)}<span class="card-unit"> kW</span></div>
+        <div class="card-sub">${demandBasis}</div>
+      </div>
+      <div class="card import statistic">
+        <div class="card-label">Median Import Demand</div>
+        <div class="card-value">${statValue(importStats.demand.median)}<span class="card-unit"> kW</span></div>
+        <div class="card-sub">${demandBasis}</div>
+      </div>
+      <div class="card import statistic">
+        <div class="card-label">Mean Daily Import</div>
+        <div class="card-value">${statValue(importStats.dailyEnergy.mean)}<span class="card-unit"> kWh/day</span></div>
+        <div class="card-sub">${energyBasis}</div>
+      </div>
+      <div class="card import statistic">
+        <div class="card-label">Median Daily Import</div>
+        <div class="card-value">${statValue(importStats.dailyEnergy.median)}<span class="card-unit"> kWh/day</span></div>
+        <div class="card-sub">${energyBasis}</div>
       </div>
       ${pf ? `
       <div class="card ${pf>=0.9?'good':'alert'}">
