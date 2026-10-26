@@ -145,6 +145,7 @@ function render() {
     : !a.dates.length
       ? "No readings in this date range."
       : `${a.missing.toLocaleString()} missing intervals · ${a.estimated.toLocaleString()} intervals flagged other than actual${a.exported === null ? " · Export register unavailable" : ""}. Missing values are not assumed to be zero. Partial register coverage can understate total site demand.`;
+  if (site.notes) $("dataNote").textContent += ` ${site.notes}`;
   chart("energyChart", "bar", a.dates, [
     {
       label: "Import (kWh)",

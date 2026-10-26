@@ -188,6 +188,8 @@ def build():
         s['first'], s['latest'] = (dates[0], dates[-1]) if dates else (None, None)
         if nmi in overrides:
             s['name'] = overrides[nmi]['name'] if isinstance(overrides[nmi], dict) else overrides[nmi]
+            if isinstance(overrides[nmi], dict) and overrides[nmi].get('notes'):
+                s['notes'] = overrides[nmi]['notes']
         elif s['address']:
             s['name'] = s['name'] + (', ' + s.get('suburb', '').title() if s.get('suburb') else '')
         save_json(ROOT / 'dist/data/sites' / (nmi + '.json'), s)
