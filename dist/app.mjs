@@ -134,6 +134,7 @@ function render() {
   $("import").textContent = number(a.imported);
   $("export").textContent = number(a.exported);
   $("peak").textContent = number(a.peak);
+  $("peakDate").textContent = a.peakDate ? dateText(a.peakDate) : "—";
   $("latest").textContent = dateText(isoDate(site.latest));
   $("coverage").textContent =
     `${a.dates.length.toLocaleString()} days in selection`;

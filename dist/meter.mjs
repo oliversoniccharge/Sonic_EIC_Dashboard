@@ -61,11 +61,16 @@ export function analyse(site, from = "", to = "") {
       });
     }
   }
-  let peak = null;
-  for (const [day, p] of Object.entries(points))
+  let peak = null,
+    peakDate = null;
+  // Chronological traversal keeps the first occurrence when peak values tie.
+  for (const [day, p] of Object.entries(points).sort(([a], [b]) => a.localeCompare(b)))
     for (let minute = 0; minute < 1440; minute++) {
       if (!p.known[minute]) continue;
-      peak = Math.max(peak ?? 0, p.power[minute]);
+      if (peak === null || p.power[minute] > peak) {
+        peak = p.power[minute];
+        peakDate = day;
+      }
       days[day].peak = Math.max(days[day].peak, p.power[minute]);
       const bin = Math.floor(minute / 30);
       profile[bin].sum += p.power[minute];
@@ -96,6 +101,7 @@ export function analyse(site, from = "", to = "") {
     imported: hasImport && importSamples ? round(imported) : null,
     exported: hasExport && exportSamples ? round(exported) : null,
     peak: hasImport ? peak : null,
+    peakDate,
     missing,
     estimated,
   };
